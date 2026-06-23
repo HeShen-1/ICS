@@ -1,5 +1,8 @@
-from pydantic_settings import BaseSettings
+from urllib.parse import quote_plus
 from functools import lru_cache
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -27,6 +30,15 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
+    # LLM
+    llm_temperature: float = 0.3
+    llm_max_tokens: int = 2048
+    llm_timeout: int = 30
+    max_context_tokens: int = 8000
+
+    # Embedding
+    embedding_dimension: int = 1024
+
     # App
     upload_dir: str = "./data/uploads"
     max_question_length: int = 500
@@ -34,13 +46,18 @@ class Settings(BaseSettings):
     top_k: int = 5
     similarity_threshold: float = 0.65
     max_history_rounds: int = 5
-    llm_timeout: int = 30
-    max_context_tokens: int = 8000
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        if v == "change-me":
+            raise ValueError("JWT_SECRET_KEY must be set to a real secret in .env")
+        return v
 
     @property
     def database_url(self) -> str:
         return (
-            f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}"
+            f"mysql+pymysql://{self.mysql_user}:{quote_plus(self.mysql_password)}"
             f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
         )
 
