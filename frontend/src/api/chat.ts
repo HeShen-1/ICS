@@ -83,4 +83,31 @@ export async function sendMessage(
       }
     }
   }
+
+  // Flush residual buffer
+  if (buffer.trim()) {
+    const eventMatch = buffer.match(/^event: (\w+)$/m);
+    const dataMatch = buffer.match(/^data: (.+)$/m);
+    if (eventMatch && dataMatch) {
+      try {
+        const data = JSON.parse(dataMatch[1]);
+        switch (eventMatch[1]) {
+          case 'token':
+            callbacks.onToken(data.text);
+            break;
+          case 'sources':
+            callbacks.onSources(data.references || []);
+            break;
+          case 'done':
+            callbacks.onDone(data);
+            break;
+          case 'error':
+            callbacks.onError(data.code, data.message);
+            break;
+        }
+      } catch {
+        // Skip malformed residual events
+      }
+    }
+  }
 }

@@ -17,8 +17,9 @@ export function LoginPage() {
     try {
       await login(account, password);
       navigate('/chat');
-    } catch (err: any) {
-      setError(err.message || '登录失败');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '操作失败';
+      setError(message);
     } finally {
       setLoading(false);
     }

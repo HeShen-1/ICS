@@ -14,7 +14,9 @@ export function FeedbackBar({ messageId }: Props) {
     setFeedback(rating);
     try {
       await submitFeedback(messageId, rating);
-    } catch {}
+    } catch {
+      setFeedback(null); // Revert optimistic update on failure
+    }
   };
 
   return (

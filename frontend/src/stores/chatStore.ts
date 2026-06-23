@@ -35,34 +35,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isStreaming: true, streamContent: '', references: [], error: null });
 
     let fullText = '';
-    await sendMessage(sessionId, content, {
-      onToken: (text) => {
-        fullText += text;
-        set({ streamContent: fullText });
-      },
-      onSources: (refs) => {
-        set({ references: refs });
-      },
-      onDone: (data) => {
-        const state = get();
-        const botMsg: Message = {
-          id: data.message_id || Date.now(),
-          role: 'assistant',
-          content: fullText,
-          intent_tag: null,
-          references: data.references || state.references,
-          created_at: new Date().toISOString(),
-        };
-        set((s) => ({
-          messages: [...s.messages, botMsg],
-          isStreaming: false,
-          streamContent: '',
-        }));
-      },
-      onError: (code, message) => {
-        set({ error: message, isStreaming: false });
-      },
-    });
+    try {
+      await sendMessage(sessionId, content, {
+        onToken: (text) => {
+          fullText += text;
+          set({ streamContent: fullText });
+        },
+        onSources: (refs) => {
+          set({ references: refs });
+        },
+        onDone: (data) => {
+          const state = get();
+          const botMsg: Message = {
+            id: data.message_id || Date.now(),
+            role: 'assistant',
+            content: fullText,
+            intent_tag: null,
+            references: data.references || state.references,
+            created_at: new Date().toISOString(),
+          };
+          set((s) => ({
+            messages: [...s.messages, botMsg],
+            isStreaming: false,
+            streamContent: '',
+          }));
+        },
+        onError: (code, message) => {
+          set({ error: message, isStreaming: false });
+        },
+      });
+    } catch {
+      set({ error: '网络连接失败，请检查网络后重试', isStreaming: false });
+    }
   },
 
   clearStream: () => set({ streamContent: '', isStreaming: false, error: null }),

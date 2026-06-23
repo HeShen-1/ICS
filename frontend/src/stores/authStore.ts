@@ -19,22 +19,28 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (account, password) => {
     const res = await apiLogin({ account, password });
     localStorage.setItem('token', res.token);
+    localStorage.setItem('userId', String(res.user_id));
     set({ token: res.token, userId: res.user_id, isAuthenticated: true });
   },
 
   register: async (phone, email, password) => {
     const res = await apiRegister({ phone, email, password });
     localStorage.setItem('token', res.token);
+    localStorage.setItem('userId', String(res.user_id));
     set({ token: res.token, userId: res.user_id, isAuthenticated: true });
   },
 
   logout: () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('userId');
     set({ token: null, userId: null, isAuthenticated: false });
   },
 
   init: () => {
     const token = localStorage.getItem('token');
-    if (token) set({ token, isAuthenticated: true });
+    const userId = localStorage.getItem('userId');
+    if (token) {
+      set({ token, userId: userId ? Number(userId) : null, isAuthenticated: true });
+    }
   },
 }));

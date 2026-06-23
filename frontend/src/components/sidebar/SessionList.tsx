@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { listSessions, createSession } from '../../api/sessions';
 import type { Session } from '../../api/sessions';
@@ -11,11 +11,12 @@ export function SessionList() {
   const navigate = useNavigate();
   const { sessionId } = useParams();
   const logout = useAuthStore((s) => s.logout);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     listSessions()
       .then((res) => setSessions(res.sessions))
-      .catch(() => {});
+      .catch(() => setError('加载会话列表失败'));
   }, [setSessions]);
 
   const handleNew = async () => {
@@ -50,7 +51,10 @@ export function SessionList() {
             <span className="truncate">{s.title || '新会话'}</span>
           </button>
         ))}
-        {sessions.length === 0 && (
+        {error && (
+          <p className="text-red-400 text-xs text-center py-4">{error}</p>
+        )}
+        {!error && sessions.length === 0 && (
           <p className="text-gray-500 text-xs text-center py-8">暂无会话</p>
         )}
       </div>

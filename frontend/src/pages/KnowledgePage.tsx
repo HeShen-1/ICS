@@ -14,6 +14,7 @@ const typeIcons: Record<string, string> = { txt: '📄', md: '📝', pdf: '📕'
 export function KnowledgePage() {
   const [docs, setDocs] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -21,7 +22,10 @@ export function KnowledgePage() {
     try {
       const res = await listDocuments();
       setDocs(res.documents);
-    } catch {}
+      setError(null);
+    } catch {
+      setError('加载文档列表失败');
+    }
   };
 
   useEffect(() => { fetchDocs(); }, []);
@@ -33,7 +37,9 @@ export function KnowledgePage() {
     try {
       await uploadDocument(file);
       await fetchDocs();
-    } catch {}
+    } catch {
+      setError('上传文档失败');
+    }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -43,7 +49,9 @@ export function KnowledgePage() {
     try {
       await deleteDocument(id);
       await fetchDocs();
-    } catch {}
+    } catch {
+      setError('删除文档失败');
+    }
   };
 
   return (
@@ -55,6 +63,10 @@ export function KnowledgePage() {
           </button>
           <h1 className="text-xl font-bold">知识库管理</h1>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>
+        )}
 
         {/* Upload */}
         <div className="mb-6">
