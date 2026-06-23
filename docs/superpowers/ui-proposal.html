@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 智能客服系统 — 设计研究 + 融合方案</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#f8f9fb;color:#1a1a2e;padding:0}
+.header{background:#fff;border-bottom:1px solid #e5e7eb;padding:20px 40px;position:sticky;top:0;z-index:10}
+.header h1{font-size:1.5rem;font-weight:700}
+.header p{color:#6b7280;font-size:0.9rem;margin-top:4px}
+.container{max-width:1400px;margin:0 auto;padding:32px 40px}
+h2{font-size:1.25rem;font-weight:700;margin:40px 0 16px;padding-bottom:8px;border-bottom:2px solid #e5e7eb}
+h2:first-of-type{margin-top:0}
+.research-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.rs-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;transition:all 0.15s}
+.rs-card:hover{border-color:#c4b5fd;box-shadow:0 4px 12px rgba(0,0,0,0.04)}
+.rs-card .icon{font-size:1.5rem;margin-bottom:8px}
+.rs-card h3{font-size:1rem;font-weight:600;margin-bottom:4px}
+.rs-card .stars{font-size:0.8rem;color:#f59e0b;margin-bottom:6px}
+.rs-card .desc{font-size:0.8rem;color:#6b7280;line-height:1.5;margin-bottom:8px}
+.rs-card .use{font-size:0.75rem;padding:4px 10px;border-radius:6px;display:inline-block}
+.use-foundation{background:#dbeafe;color:#1e40af}
+.use-motion{background:#fef3c7;color:#92400e}
+.use-elements{background:#dcfce7;color:#166534}
+.use-inspo{background:#f3e8ff;color:#6b21a8}
+.style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.style-card{background:#fff;border:2px solid #e5e7eb;border-radius:12px;overflow:hidden;cursor:pointer;transition:all 0.2s}
+.style-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.08)}
+.style-card.sel{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,0.1)}
+.style-preview{height:180px;overflow:hidden;position:relative}
+.style-meta{padding:16px}
+.style-meta h4{font-size:0.95rem;font-weight:600}
+.style-meta p{font-size:0.78rem;color:#6b7280;margin-top:4px;line-height:1.4}
+.mp{display:flex;flex-direction:column;height:100%;font-size:11px}
+.mp-h{height:32px;display:flex;align-items:center;padding:0 12px;font-weight:600;font-size:10px;border-bottom:1px solid rgba(0,0,0,0.06)}
+.mp-b{padding:10px;display:flex;flex-direction:column;gap:6px;flex:1}
+.mp-msg-u{align-self:flex-end;padding:5px 10px;border-radius:12px 12px 2px 12px;max-width:75%;font-size:10px;line-height:1.4}
+.mp-msg-b{align-self:flex-start;padding:5px 10px;border-radius:12px 12px 12px 2px;max-width:80%;font-size:10px;line-height:1.4}
+.mp-ref{font-size:8px;margin-top:3px;padding:3px 6px;border-radius:4px}
+.mp-fb{display:flex;gap:3px;margin-top:2px}
+.mp-fb span{padding:1px 4px;border-radius:3px;font-size:8px}
+.mp-in{height:28px;display:flex;align-items:center;padding:0 10px;gap:6px;border-top:1px solid rgba(0,0,0,0.06)}
+.mp-in-dot{flex:1;height:22px;border-radius:8px;padding:0 8px;font-size:9px;display:flex;align-items:center}
+.mp-in-btn{width:22px;height:22px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px}
+.saas .mp-h{background:#fff;color:#374151}
+.saas .mp-b{background:#fafbfc}
+.saas .mp-msg-u{background:#6366f1;color:#fff}
+.saas .mp-msg-b{background:#fff;border:1px solid #e5e7eb;color:#374151}
+.saas .mp-ref{background:#eef2ff;color:#6366f1}
+.saas .mp-fb span{color:#9ca3af;border:1px solid #e5e7eb;background:#fff}
+.saas .mp-in{background:#fff}
+.saas .mp-in-dot{background:#f3f4f6;color:#9ca3af;border:1px solid #e5e7eb}
+.saas .mp-in-btn{background:#6366f1;color:#fff}
+.ent .mp-h{background:#111827;color:#e5e7eb}
+.ent .mp-b{background:#0f172a}
+.ent .mp-msg-u{background:#3b82f6;color:#fff}
+.ent .mp-msg-b{background:#1e293b;border:1px solid #334155;color:#cbd5e1}
+.ent .mp-ref{background:#1e293b;color:#64748b;border:1px solid #334155}
+.ent .mp-fb span{color:#64748b;border:1px solid #334155;background:transparent}
+.ent .mp-in{background:#111827}
+.ent .mp-in-dot{background:#1e293b;color:#64748b;border:1px solid #334155}
+.ent .mp-in-btn{background:#3b82f6;color:#fff}
+.cln .mp-h{background:#fff;color:#111;border-bottom:2px solid #111}
+.cln .mp-b{background:#fff}
+.cln .mp-msg-u{background:#111;color:#fff;border-radius:2px 12px 2px 12px}
+.cln .mp-msg-b{background:#fff;color:#111;border:2px solid #111;border-radius:2px 12px 12px 2px}
+.cln .mp-ref{background:#f5f5f5;color:#555}
+.cln .mp-fb span{color:#999;background:#f5f5f5}
+.cln .mp-in{background:#fff;border-top:2px solid #111}
+.cln .mp-in-dot{background:#f5f5f5;color:#999;border:2px solid #e5e5e5}
+.cln .mp-in-btn{background:#111;color:#fff}
+.final-section{margin-top:48px}
+.final-preview{border-radius:16px;overflow:hidden;box-shadow:0 4px 30px rgba(0,0,0,0.1);border:1px solid #e5e7eb}
+.final-chat{display:flex;height:520px}
+.final-sidebar{width:240px;background:#fafbfc;border-right:1px solid #e8eaed;display:flex;flex-direction:column}
+.final-side-h{padding:16px;font-weight:700;font-size:0.85rem;color:#374151;border-bottom:1px solid #e8eaed}
+.final-new-btn{margin:12px;padding:8px 12px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:pointer;text-align:center}
+.final-sessions{flex:1;overflow:hidden;padding:4px 8px}
+.final-sess{padding:8px 10px;border-radius:8px;font-size:0.78rem;color:#374151;margin-bottom:2px;cursor:pointer}
+.final-sess.active{background:#eef2ff;color:#4338ca;font-weight:600}
+.final-sess.other{color:#6b7280}
+.final-side-f{border-top:1px solid #e8eaed;padding:8px 12px;display:flex;flex-direction:column;gap:4px}
+.final-side-f a{font-size:0.75rem;color:#6b7280;text-decoration:none;padding:6px 8px;border-radius:6px;display:flex;align-items:center;gap:6px}
+.final-side-f a:hover{background:#f3f4f6}
+.final-main{flex:1;display:flex;flex-direction:column;background:#fff}
+.final-main-h{height:48px;border-bottom:1px solid #e8eaed;display:flex;align-items:center;padding:0 20px;font-size:0.85rem;font-weight:600;color:#374151;background:#fff}
+.final-msgs{flex:1;padding:20px 24px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.final-msg-u{align-self:flex-end;background:#6366f1;color:#fff;padding:10px 16px;border-radius:16px 16px 4px 16px;font-size:0.8rem;max-width:60%;line-height:1.5;box-shadow:0 2px 8px rgba(99,102,241,0.2)}
+.final-msg-b-wrap{display:flex;gap:10px;align-items:flex-start}
+.final-avatar{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#818cf8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.8rem;flex-shrink:0}
+.final-msg-b{background:#f9fafb;border:1px solid #f0f1f3;padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:0.8rem;max-width:70%;line-height:1.5;color:#374151}
+.final-msg-b-stream{background:#f9fafb;border:1px solid #f0f1f3;padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:0.8rem;max-width:70%;line-height:1.5;color:#374151;position:relative}
+.final-msg-b-stream::after{content:'|';color:#6366f1;animation:blink 0.8s infinite;margin-left:2px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.final-ref{margin-top:6px;padding:6px 10px;background:#eef2ff;border-radius:8px;font-size:0.7rem;color:#5b63d3;display:flex;align-items:center;gap:4px}
+.final-fb{display:flex;gap:4px;margin-top:6px}
+.final-fb button{padding:3px 8px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;font-size:0.7rem;color:#9ca3af;cursor:pointer;transition:all 0.15s}
+.final-fb button:hover{color:#6366f1;border-color:#6366f1}
+.final-input-bar{padding:14px 24px;border-top:1px solid #e8eaed;background:#fff;display:flex;gap:10px;align-items:flex-end}
+.final-input{flex:1;border:2px solid #e8eaed;border-radius:14px;padding:10px 16px;font-size:0.8rem;resize:none;height:42px;outline:none;color:#374151;font-family:inherit;transition:border-color 0.15s}
+.final-input:focus{border-color:#6366f1}
+.final-input-count{font-size:0.7rem;color:#9ca3af;text-align:right;margin-top:4px}
+.final-send{width:42px;height:42px;background:#6366f1;border:none;border-radius:12px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:all 0.15s;flex-shrink:0}
+.final-send:hover{background:#4f46e5;transform:scale(1.05)}
+.recap{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px}
+.recap-item{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px}
+.recap-item h5{font-size:0.85rem;font-weight:600;margin-bottom:4px}
+.recap-item p{font-size:0.78rem;color:#6b7280;line-height:1.4}
+.recap-item .tag-row{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+.recap-item .rtag{font-size:0.7rem;padding:3px 8px;border-radius:4px;font-weight:500}
+.rtag-primary{background:#eef2ff;color:#4f46e5}
+.rtag-motion{background:#fef9c3;color:#a16207}
+.rtag-elem{background:#dcfce7;color:#166534}
+.cta-bar{background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:14px;padding:32px;margin-top:40px;color:#fff;text-align:center}
+.cta-bar h2{color:#fff;border:none;margin:0 0 8px;font-size:1.3rem}
+.cta-bar p{opacity:0.85;font-size:0.95rem;margin-bottom:16px}
+.cta-btns{display:flex;gap:12px;justify-content:center}
+.cta-btn{padding:10px 24px;border-radius:10px;font-weight:600;font-size:0.9rem;border:none;cursor:pointer;transition:all 0.15s}
+.cta-btn.primary{background:#fff;color:#4f46e5}
+.cta-btn.secondary{background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3)}
+.cta-btn:hover{transform:translateY(-1px)}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>AI 智能客服系统 — 设计研究 + 融合方案</h1>
+  <p>基于 6 个设计站点深入研究 | shadcn/ui · reactbits · DesignPrompts · Uiverse · Awwwards · MotionSites</p>
+</div>
+
+<div class="container">
+
+<h2>站点调研总结</h2>
+<div class="research-grid">
+  <div class="rs-card">
+    <div class="icon">🧩</div>
+    <h3>shadcn/ui</h3>
+    <div class="stars">⭐ 117K GitHub Stars</div>
+    <div class="desc">完整的设计系统工厂。Button/Input/Card/Dialog/Sidebar/Chart/Form/Toast/Skeleton 全套生产级组件。源码复制到项目，完全控制。自带 Blocks 页面模板和 Charts。<br><br><b>关键发现</b>：不是"组件库"，是"组件工厂"——你拥有源码。支持 GitHub Registry 分发。</div>
+    <span class="use use-foundation">基础组件层</span>
+  </div>
+  <div class="rs-card">
+    <div class="icon">✨</div>
+    <h3>React Bits</h3>
+    <div class="stars">⭐ 41.8K GitHub Stars</div>
+    <div class="desc">130+ 动画组件。Backgrounds(DotField/Aurora/Beams)、Text Animations(ShinyText/SplitText)、Animations(BlobCursor/MagnetLines/PixelTrail)、Components(Dock)。<br><br><b>关键发现</b>：shadcn registry 兼容 —— 一行命令安装；React 增速最快的动画库。4 种代码口味(JS/CSS, TS/CSS, JS/Tailwind, TS/Tailwind)。</div>
+    <span class="use use-motion">动效增强层</span>
+  </div>
+  <div class="rs-card">
+    <div class="icon">🎪</div>
+    <h3>Uiverse.io</h3>
+    <div class="stars">⭐ 7,359 Elements</div>
+    <div class="desc">社区共建 UI 元素库。直接复制 HTML/CSS、Tailwind、React 或 Figma。Buttons/Cards/Loaders/Checkboxes/Toggles/Inputs/Forms/Tooltips/Glassmorphism/Neumorphism。<br><br><b>关键发现</b>：特定元素的宝库——loading spinners、animated toggles、glass cards、创意按钮。</div>
+    <span class="use use-elements">元素灵感源</span>
+  </div>
+  <div class="rs-card">
+    <div class="icon">🎨</div>
+    <h3>Design Prompts</h3>
+    <div class="stars">⭐ 30 Design Styles</div>
+    <div class="desc">AI 驱动的设计风格浏览器。30 种风格(Monochrome→Cyberpunk)各有完整预览页+AI Prompt。一键切换 Light/Dark/Sans/Serif/Mono 维度筛选。<br><br><b>关键发现</b>：#05 SaaS Light、#21 Professional Light、#24 Enterprise Light 最匹配客服系统。</div>
+    <span class="use use-inspo">风格方向参考</span>
+  </div>
+  <div class="rs-card">
+    <div class="icon">🏆</div>
+    <h3>Awwwards</h3>
+    <div class="stars">⭐ 行业设计标准</div>
+    <div class="desc">全球网页设计奖项。Site of the Day (SUI 7.38/10)、Directory/Academy/Market/Collections 生态。<br><br><b>关键发现</b>：提供顶级设计趋势参考和审美基准线，但不直接给组件。Collections 功能可发现同类型产品设计。</div>
+    <span class="use use-inspo">设计审美参考</span>
+  </div>
+  <div class="rs-card">
+    <div class="icon">⚡</div>
+    <h3>MotionSites.ai</h3>
+    <div class="stars">⭐ Premium Prompts</div>
+    <div class="desc">Premium 动效/动画灵感平台。专注 hero sections 和 motion design 方向。<br><br><b>关键发现</b>：对客服聊天场景直接价值有限，但动画风格参考有用。ReactBits 更实用。</div>
+    <span class="use use-motion">动效审美参考</span>
+  </div>
+</div>
+
+<h2>三种候选风格方向</h2>
+<div class="style-grid">
+  <div class="style-card saas sel" onclick="document.querySelectorAll('.style-card').forEach(c=>c.classList.remove('sel'));this.classList.add('sel');document.getElementById('vote').textContent='已选择：A · SaaS Light'">
+    <div class="style-preview">
+      <div class="mp">
+        <div class="mp-h">退换货咨询</div>
+        <div class="mp-b">
+          <div class="mp-msg-u">退换货流程是什么？</div>
+          <div class="mp-msg-b">登录→我的订单→申请售后→24h审核→退款<div class="mp-ref">参考：退换货政策.txt</div><div class="mp-fb"><span>有帮助</span><span>没帮助</span></div></div>
+        </div>
+        <div class="mp-in"><div class="mp-in-dot">输入问题...</div><div class="mp-in-btn">→</div></div>
+      </div>
+    </div>
+    <div class="style-meta">
+      <h4>A · SaaS Light（推荐）</h4>
+      <p>Indigo #6366f1 + 白底 + 微妙阴影 + 8-14px 圆角<br>像 Linear / Vercel / Stripe 的产品 UI<br>风格来源：Design Prompts SaaS #05</p>
+    </div>
+  </div>
+  <div class="style-card ent" onclick="document.querySelectorAll('.style-card').forEach(c=>c.classList.remove('sel'));this.classList.add('sel');document.getElementById('vote').textContent='已选择：B · Enterprise Dark'">
+    <div class="style-preview">
+      <div class="mp">
+        <div class="mp-h">退换货咨询</div>
+        <div class="mp-b">
+          <div class="mp-msg-u">退换货流程是什么？</div>
+          <div class="mp-msg-b">登录→我的订单→申请售后<div class="mp-ref">参考：退换货政策.txt</div><div class="mp-fb"><span>有帮助</span><span>没帮助</span></div></div>
+        </div>
+        <div class="mp-in"><div class="mp-in-dot">输入问题...</div><div class="mp-in-btn">→</div></div>
+      </div>
+    </div>
+    <div class="style-meta">
+      <h4>B · Enterprise Dark</h4>
+      <p>暗色主题 + 蓝强调色 + 深灰层次<br>像 Linear App / GitHub Dark Mode 工作台<br>风格来源：Design Prompts Enterprise #24</p>
+    </div>
+  </div>
+  <div class="style-card cln" onclick="document.querySelectorAll('.style-card').forEach(c=>c.classList.remove('sel'));this.classList.add('sel');document.getElementById('vote').textContent='已选择：C · Swiss Minimalist'">
+    <div class="style-preview">
+      <div class="mp">
+        <div class="mp-h">退换货咨询</div>
+        <div class="mp-b">
+          <div class="mp-msg-u">退换货流程是什么？</div>
+          <div class="mp-msg-b">登录→我的订单→申请售后→7天内可申请<div class="mp-ref">参考：退换货政策.txt</div><div class="mp-fb"><span>有帮助</span><span>没帮助</span></div></div>
+        </div>
+        <div class="mp-in"><div class="mp-in-dot">输入问题...</div><div class="mp-in-btn">→</div></div>
+      </div>
+    </div>
+    <div class="style-meta">
+      <h4>C · Swiss Minimalist</h4>
+      <p>黑白极致 + 粗边框 + 无圆角<br>像 Swiss Design / Brutalist 实验风格<br>风格来源：Design Prompts Monochrome #01</p>
+    </div>
+  </div>
+</div>
+
+<h2>推荐方案预览（A · SaaS Light）</h2>
+
+<div class="recap">
+  <div class="recap-item">
+    <h5>基础组件层</h5>
+    <p>shadcn/ui：Button, Input, Card, Dialog, Sidebar, Badge, Avatar, Toast, Skeleton, Tabs</p>
+    <div class="tag-row"><span class="rtag rtag-primary">shadcn/ui</span><span class="rtag rtag-primary">Tailwind v4</span><span class="rtag rtag-primary">Radix UI</span></div>
+  </div>
+  <div class="recap-item">
+    <h5>动效增强层</h5>
+    <p>reactbits.dev：SplitText（流式文字入场）、BlobCursor（光标反馈）、消息气泡 fadeInUp 动画</p>
+    <div class="tag-row"><span class="rtag rtag-motion">reactbits.dev</span><span class="rtag rtag-motion">CSS @keyframes</span><span class="rtag rtag-motion">Framer Motion</span></div>
+  </div>
+  <div class="recap-item">
+    <h5>风格设计令牌</h5>
+    <p>Indigo #6366f1 · Neutral Gray · Inter 字体 · 8/10/12/14px 圆角阶梯 · shadow-sm/md 两层阴影</p>
+    <div class="tag-row"><span class="rtag rtag-elem">SaaS Light</span><span class="rtag rtag-elem">Indigo</span><span class="rtag rtag-elem">Inter</span><span class="rtag rtag-elem">4级圆角</span></div>
+  </div>
+</div>
+
+<div class="final-section">
+  <div class="final-preview">
+    <div class="final-chat">
+      <div class="final-sidebar">
+        <div class="final-side-h">智能客服</div>
+        <div class="final-new-btn">+ 新建会话</div>
+        <div class="final-sessions">
+          <div class="final-sess active">退换货咨询</div>
+          <div class="final-sess other">产品价格查询</div>
+          <div class="final-sess other">账号问题</div>
+          <div class="final-sess other">订单状态查询</div>
+        </div>
+        <div class="final-side-f">
+          <a href="#">📚 知识库管理</a>
+          <a href="#">📊 使用统计</a>
+          <a href="#">🚪 退出登录</a>
+        </div>
+      </div>
+      <div class="final-main">
+        <div class="final-main-h">退换货咨询</div>
+        <div class="final-msgs">
+          <div class="final-msg-u">退换货流程是什么？</div>
+          <div class="final-msg-b-wrap">
+            <div class="final-avatar">🤖</div>
+            <div>
+              <div class="final-msg-b">
+                <b>退换货流程如下：</b><br><br>
+                1. 登录您的账户<br>
+                2. 进入「我的订单」页面<br>
+                3. 选择需退换货的订单<br>
+                4. 点击「申请售后」，填写原因并提交<br>
+                5. 客服 24 小时内审核<br><br>
+                审核通过后寄回商品，仓库签收后 3 个工作日内退款。自签收日起 7 天内可申请无理由退货。
+              </div>
+              <div class="final-ref">📚 参考：退换货政策.txt · 相似度 92%</div>
+              <div class="final-fb">
+                <button>👍 有帮助</button>
+                <button>👎 没帮助</button>
+              </div>
+            </div>
+          </div>
+          <div class="final-msg-u">几天能退款？</div>
+          <div class="final-msg-b-wrap">
+            <div class="final-avatar">🤖</div>
+            <div>
+              <div class="final-msg-b-stream">退款到账时间：银行卡 3-7 个工作日，支付宝/微信 1-3 个工作日。退款金额原路返回。</div>
+              <div class="final-ref">📚 参考：退换货政策.txt · 相似度 88%</div>
+              <div class="final-fb">
+                <button>👍 有帮助</button>
+                <button>👎 没帮助</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="final-input-bar">
+          <div style="flex:1">
+            <input class="final-input" placeholder="输入您的问题... (Enter 发送)" value="退换货邮费谁承担？">
+            <div class="final-input-count">9 / 500</div>
+          </div>
+          <button class="final-send">→</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="cta-bar">
+  <h2 id="vote">请选择方案</h2>
+  <p>点击上方 3 个风格卡片选择 | 也可混合定制（如 "A 的配色 + B 的暗色模式切换"）</p>
+  <div class="cta-btns">
+    <button class="cta-btn primary" onclick="document.getElementById('vote').textContent='已确认：方案 A · SaaS Light'">✅ 方案 A</button>
+    <button class="cta-btn secondary" onclick="document.getElementById('vote').textContent='已确认：方案 B · Dark'">方案 B</button>
+    <button class="cta-btn secondary" onclick="document.getElementById('vote').textContent='已确认：方案 C · Minimal'">方案 C</button>
+    <button class="cta-btn secondary" onclick="document.getElementById('vote').textContent='已确认：混合定制'">混合定制</button>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
