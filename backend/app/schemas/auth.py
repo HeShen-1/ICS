@@ -15,6 +15,13 @@ class RegisterRequest(BaseModel):
             raise ValueError("手机号格式不正确")
         return v
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        if v and "@" not in v:
+            raise ValueError("邮箱格式不正确")
+        return v
+
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):

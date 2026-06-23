@@ -1,56 +1,34 @@
 """聊天服务"""
+from datetime import date
 from sqlalchemy.orm import Session
 from app.config import get_settings
+from app.models.daily_question import DailyQuestionCount
 
 
-def check_daily_limit(db: Session, user_id: int) -> bool:
-    """检查每日提问次数，返回 True 表示未超限"""
+def check_and_increment_daily_limit(db: Session, user_id: int) -> bool:
+    """原子地检查并增加每日提问计数，返回 True 表示未超限"""
     settings = get_settings()
-    from datetime import date
-
-    today = date.today()
-    result = db.execute(
-        db.text(
-            "SELECT count FROM daily_question_count "
-            "WHERE user_id = :uid AND query_date = :qdate"
-        ),
-        {"uid": user_id, "qdate": today},
-    ).fetchone()
-
-    current = result[0] if result else 0
-    return current < settings.daily_question_limit
-
-
-def increment_question_count(db: Session, user_id: int):
-    """增加当日提问计数"""
-    from datetime import date
     today = date.today()
 
-    existing = db.execute(
-        db.text(
-            "SELECT id FROM daily_question_count "
-            "WHERE user_id = :uid AND query_date = :qdate"
-        ),
-        {"uid": user_id, "qdate": today},
-    ).fetchone()
-
-    if existing:
-        db.execute(
-            db.text(
-                "UPDATE daily_question_count SET count = count + 1 "
-                "WHERE id = :id"
-            ),
-            {"id": existing[0]},
+    # 使用 SELECT ... FOR UPDATE 实现原子 upsert
+    record = (
+        db.query(DailyQuestionCount)
+        .filter(
+            DailyQuestionCount.user_id == user_id,
+            DailyQuestionCount.query_date == today,
         )
+        .with_for_update()
+        .first()
+    )
+
+    if record:
+        if record.count >= settings.daily_question_limit:
+            return False
+        record.count += 1
     else:
-        db.execute(
-            db.text(
-                "INSERT INTO daily_question_count (user_id, query_date, count) "
-                "VALUES (:uid, :qdate, 1)"
-            ),
-            {"uid": user_id, "qdate": today},
-        )
+        db.add(DailyQuestionCount(user_id=user_id, query_date=today, count=1))
     db.commit()
+    return True
 
 
 def validate_question(content: str) -> str | None:

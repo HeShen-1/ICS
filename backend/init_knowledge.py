@@ -4,10 +4,10 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app.database import engine, Base
-from app.models.user import User
-from app.models.session import Session
-from app.models.message import Message
-from app.models.feedback import Feedback
+from app.models.user import User  # noqa: F401 — registers model with Base.metadata
+from app.models.session import Session  # noqa: F401
+from app.models.message import Message  # noqa: F401
+from app.models.feedback import Feedback  # noqa: F401
 from app.models.document import Document, DocumentStatus, FileType
 from app.rag.ingestion import DocumentIngestion
 from app.rag.vector_store import VectorStore
@@ -17,6 +17,24 @@ def init_database():
     """创建所有表"""
     Base.metadata.create_all(bind=engine)
     print("✅ 数据库表创建完成")
+
+
+def _ensure_system_user(db):
+    """确保存在系统用户，返回 user_id"""
+    from app.models.user import User
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    user = db.query(User).filter(User.phone == "00000000000").first()
+    if not user:
+        user = User(
+            phone="00000000000",
+            email="system@ics.local",
+            password_hash=pwd_context.hash("system"),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return user.id
 
 
 def init_knowledge():
@@ -31,6 +49,8 @@ def init_knowledge():
     db = SessionLocal()
 
     try:
+        system_user_id = _ensure_system_user(db)
+
         for filename in os.listdir(example_dir):
             file_path = os.path.join(example_dir, filename)
             if not os.path.isfile(file_path):
@@ -48,6 +68,7 @@ def init_knowledge():
 
             # 保存文档记录到 MySQL
             doc = Document(
+                user_id=system_user_id,
                 name=filename,
                 file_type=file_type,
                 status=DocumentStatus.ready if result["success"] else DocumentStatus.failed,

@@ -17,6 +17,8 @@ class LLMClient:
         self.model = settings.deepseek_model
         self.timeout = settings.llm_timeout
         self.max_retries = 3
+        self.temperature = settings.llm_temperature
+        self.max_tokens = settings.llm_max_tokens
 
     async def chat_stream(
         self,
@@ -31,8 +33,8 @@ class LLMClient:
                     model=self.model,
                     messages=messages,
                     stream=True,
-                    temperature=0.3,
-                    max_tokens=2048,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
                     timeout=self.timeout,
                 )
 

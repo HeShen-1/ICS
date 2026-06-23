@@ -12,7 +12,7 @@ class VectorStore:
     def __init__(self):
         settings = get_settings()
         self.db_path = settings.milvus_db_path
-        self.dimension = 1024  # BGE-M3 维度
+        self.dimension = settings.embedding_dimension
         self._client: MilvusClient | None = None
 
     @property

@@ -29,8 +29,8 @@ async def chat(
     if error:
         raise HTTPException(status_code=400, detail=error)
 
-    # 3. 检查每日次数
-    if not chat_service.check_daily_limit(db, user_id):
+    # 3. 原子地检查并增加每日提问次数
+    if not chat_service.check_and_increment_daily_limit(db, user_id):
         raise HTTPException(status_code=429, detail="今日提问次数已达上限")
 
     # 4. 保存用户消息
@@ -42,9 +42,6 @@ async def chat(
         {"role": m.role.value, "content": m.content}
         for m in messages[:-1]  # 不包含刚保存的用户消息
     ]
-
-    # 6. 次数+1
-    chat_service.increment_question_count(db, user_id)
 
     # 7. 返回 SSE 流
     async def event_stream():

@@ -1,8 +1,11 @@
 """会话接口"""
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user_id
+from app.models.message import Message
+from app.models.session import Session as SessionModel
 from app.schemas.session import (
     SessionCreate,
     SessionOut,
@@ -20,6 +23,20 @@ def list_sessions(
     db: Session = Depends(get_db),
 ):
     sessions = session_service.get_user_sessions(db, user_id)
+
+    # 批量查询消息计数，避免 N+1 查询
+    session_ids = [s.id for s in sessions]
+    message_counts = {}
+    if session_ids:
+        rows = (
+            db.query(SessionModel.id, func.count(Message.id))
+            .outerjoin(Message, Message.session_id == SessionModel.id)
+            .filter(SessionModel.id.in_(session_ids))
+            .group_by(SessionModel.id)
+            .all()
+        )
+        message_counts = {row[0]: row[1] for row in rows}
+
     return SessionListResponse(
         sessions=[
             SessionOut(
@@ -28,7 +45,7 @@ def list_sessions(
                 status=s.status.value,
                 created_at=s.created_at,
                 updated_at=s.updated_at,
-                message_count=len(s.messages),
+                message_count=message_counts.get(s.id, 0),
             )
             for s in sessions
         ],

@@ -59,7 +59,10 @@ class DocumentIngestion:
                 return f.read()
 
         if ext == ".pdf":
-            from llama_index.readers.file import PDFReader
+            try:
+                from llama_index.readers.file import PDFReader
+            except ImportError:
+                raise ImportError("PDF 处理需要安装 llama-index: pip install llama-index-readers-file")
             reader = PDFReader()
             documents = reader.load_data(file=Path(file_path))
             return "\n\n".join(doc.text for doc in documents)

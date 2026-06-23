@@ -9,6 +9,8 @@ class TextChunker:
     """文本分块器"""
 
     def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50):
+        if chunk_overlap >= chunk_size:
+            raise ValueError(f"chunk_overlap ({chunk_overlap}) must be less than chunk_size ({chunk_size})")
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 

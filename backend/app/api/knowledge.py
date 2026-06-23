@@ -26,7 +26,7 @@ async def upload(
     if len(content) > max_size:
         raise HTTPException(400, "文件大小不能超过 10MB")
 
-    doc = knowledge_service.upload_document(db, content, file.filename)
+    doc = knowledge_service.upload_document(db, user_id, content, file.filename)
     return DocumentOut(
         id=doc.id,
         name=doc.name,
@@ -43,7 +43,7 @@ def list_docs(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    docs = knowledge_service.list_documents(db)
+    docs = knowledge_service.list_documents(db, user_id)
     return DocumentListResponse(
         documents=[
             DocumentOut(
@@ -68,7 +68,7 @@ def delete_doc(
     db: Session = Depends(get_db),
 ):
     try:
-        knowledge_service.delete_document(db, doc_id)
+        knowledge_service.delete_document(db, doc_id, user_id)
         return {"message": "删除成功"}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
