@@ -1,7 +1,0 @@
-{
-  "tool_name": "mcp__chrome-devtools__evaluate_script",
-  "tool_input_preview": "{\"function\":\"() => {\\n  document.title = 'AI 智能客服系统 — 设计研究 + 融合方案';\\n  document.body.innerHTML = `\\n<!DOCTYPE html>\\n<html lang=\\\"zh-CN\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<meta name=\\\"viewport\\\" co...",
-  "error": "Error: Unexpected identifier 'npx'",
-  "timestamp": "2026-06-23T14:04:31.296Z",
-  "retry_count": 1
-}

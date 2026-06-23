@@ -29,6 +29,14 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
+# Project tooling (local only)
+.codegraph/
+.omc/
+
+# Exam reference (not for submission)
+AI开发工程师笔试题.docx
+AI开发工程师笔试题.md
+
 # HuggingFace cache (keep out of repo)
 *.bin
 *.safetensors
