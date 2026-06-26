@@ -41,45 +41,68 @@ export function AgentPage() {
   const sourceText = result ? buildMermaid(result.tasks) : '';
 
   const handleExportPng = useCallback(async () => {
-    const svgEl = mermaidRef.current?.querySelector('svg');
-    if (!svgEl) return;
+    try {
+      const mermaidApi = (window as Record<string, unknown>).mermaid;
+      if (!mermaidApi || typeof (mermaidApi as Record<string, unknown>).render !== 'function') {
+        alert('Mermaid 尚未加载完成，请稍后再试');
+        return;
+      }
 
-    const svgRect = svgEl.getBoundingClientRect();
-    const viewBox = svgEl.getAttribute('viewBox')?.split(/\s+/).map(Number) || [];
-    const w = viewBox[2] || svgRect.width || 800;
-    const h = viewBox[3] || svgRect.height || 600;
+      // 用 mermaid.render() 生成纯净 SVG（绕过 foreignObject 问题）
+      const { svg } = await (mermaidApi as Record<string, CallableFunction>).render(
+        'export-' + Date.now(),
+        sourceText,
+      );
 
-    const ratio = Math.min(4000 / w, 4000 / h, 4); // max 4000px, up to 4x scale
-    const canvasW = Math.round(w * ratio);
-    const canvasH = Math.round(h * ratio);
+      // 解析 SVG 尺寸
+      const parser = new DOMParser();
+      const svgDoc = parser.parseFromString(svg, 'image/svg+xml');
+      const svgRoot = svgDoc.documentElement;
+      const viewBox = svgRoot.getAttribute('viewBox')?.split(/\s+/).map(Number) || [];
+      const w = viewBox[2] || 800;
+      const h = viewBox[3] || 600;
 
-    const svgData = new XMLSerializer().serializeToString(svgEl);
-    const img = new Image();
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
+      // 动态分辨率: 小图 4x, 大图最多 4000px
+      const ratio = Math.min(4000 / w, 4000 / h, 4);
+      const canvasW = Math.round(w * ratio);
+      const canvasH = Math.round(h * ratio);
 
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = canvasW;
-      canvas.height = canvasH;
-      const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvasW, canvasH);
-      ctx.drawImage(img, 0, 0, canvasW, canvasH);
-      URL.revokeObjectURL(url);
+      const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
 
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'task-flow.png';
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }, 'image/png');
-    };
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasW;
+        canvas.height = canvasH;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        ctx.drawImage(img, 0, 0, canvasW, canvasH);
+        URL.revokeObjectURL(url);
 
-    img.src = url;
-  }, []);
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            alert('导出失败，请重试');
+            return;
+          }
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `task-flow-${canvasW}x${canvasH}.png`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }, 'image/png');
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        alert('导出失败：无法渲染流程图');
+      };
+      img.src = url;
+    } catch (e) {
+      console.error('Export failed:', e);
+      alert('导出失败，请重试');
+    }
+  }, [sourceText]);
 
   useEffect(() => {
     if (!result || !mermaidRef.current) return;
