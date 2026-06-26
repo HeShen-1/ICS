@@ -9,17 +9,17 @@ interface MermaidAPI {
   run(opts: { nodes: HTMLElement[] }): Promise<void>;
 }
 
-function buildMermaid(tasks: DecomposeTask[]): string {
+function buildMermaid(tasks: DecomposeTask[], withBreaks = false): string {
   const idMap: Record<number, string> = {};
   tasks.forEach((t) => {
     idMap[t.id] = `task_${t.id}`;
   });
 
   const lines: string[] = ['flowchart TD'];
+  const sep = withBreaks ? '<br/>' : ' — ';
   tasks.forEach((t) => {
     const label = t.description.replace(/"/g, '#quot;');
-    lines.push(`  ${idMap[t.id]}["${label}<br/><i>${t.service}</i>"]`);
-  });
+    lines.push(`  ${idMap[t.id]}["${label}${sep}${t.service}"]`);
   tasks.forEach((t) => {
     t.dependencies.forEach((dep) => {
       if (idMap[dep] !== undefined) {
@@ -38,20 +38,22 @@ export function AgentPage() {
   const [zoom, setZoom] = useState(1);
   const [showSource, setShowSource] = useState(false);
   const mermaidRef = useRef<HTMLDivElement>(null);
-  const sourceText = result ? buildMermaid(result.tasks) : '';
+  const sourceText = result ? buildMermaid(result.tasks, true) : '';
+  const exportText = result ? buildMermaid(result.tasks, false) : ''; // 导出用纯文本，避免 foreignObject
 
   const handleExportPng = useCallback(async () => {
     try {
       const mermaidApi = (window as Record<string, unknown>).mermaid;
-      if (!mermaidApi || typeof (mermaidApi as Record<string, unknown>).render !== 'function') {
+      if (!mermaidApi || typeof (mermaidApi as Record<string, CallableFunction>).render !== 'function') {
         alert('Mermaid 尚未加载完成，请稍后再试');
         return;
       }
 
-      // 用 mermaid.render() 生成纯净 SVG（绕过 foreignObject 问题）
+      // 用 mermaid.render() 生成纯净 SVG
+      // 用 exportText（纯文本无 foreignObject）渲染，确保 Image 能加载
       const { svg } = await (mermaidApi as Record<string, CallableFunction>).render(
         'export-' + Date.now(),
-        sourceText,
+        exportText,
       );
 
       // 解析 SVG 尺寸
@@ -95,14 +97,14 @@ export function AgentPage() {
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
-        alert('导出失败：无法渲染流程图');
+        alert('导出失败，请重试');
       };
       img.src = url;
     } catch (e) {
       console.error('Export failed:', e);
       alert('导出失败，请重试');
     }
-  }, [sourceText]);
+  }, [exportText]);
 
   useEffect(() => {
     if (!result || !mermaidRef.current) return;
@@ -113,7 +115,7 @@ export function AgentPage() {
     const containerId = 'mermaid-container-' + Date.now();
     const container = document.createElement('div');
     container.id = containerId;
-    container.textContent = buildMermaid(result.tasks);
+    container.textContent = buildMermaid(result.tasks, true);
     container.className = 'mermaid';
     el.appendChild(container);
 
