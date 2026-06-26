@@ -35,19 +35,28 @@ class VectorStore:
             enable_dynamic_field=True,
         )
 
-    def insert_chunks(self, chunks: List[Dict], embeddings: List[List[float]]) -> List[int]:
-        """批量插入 chunk + embedding, 返回 Milvus 主键 ID 列表"""
+    def insert_chunks(self, chunks: List[Dict], embeddings: List[List[float]], kb_id: str | None = None) -> List[int]:
+        """批量插入 chunk + embedding, 返回 Milvus 主键 ID 列表
+
+        Args:
+            chunks: 分块列表
+            embeddings: embedding 向量列表
+            kb_id: 可选的知识库 ID, 写入每个 chunk 的 metadata
+        """
         if not chunks or not embeddings:
             return []
 
         data = []
         for chunk, emb in zip(chunks, embeddings):
-            data.append({
+            entry = {
                 "vector": emb,
                 "text": chunk["text"],
                 "source": chunk["metadata"].get("source", "unknown"),
                 "chunk_index": chunk["metadata"].get("chunk_index", 0),
-            })
+            }
+            if kb_id:
+                entry["kb_id"] = kb_id
+            data.append(entry)
 
         result = self.client.insert(
             collection_name=self.COLLECTION_NAME,
@@ -67,7 +76,7 @@ class VectorStore:
             collection_name=self.COLLECTION_NAME,
             data=[query_embedding],
             limit=top_k,
-            output_fields=["text", "source", "chunk_index"],
+            output_fields=["text", "source", "chunk_index", "kb_id"],
             filter=filter_expr,
         )
 
@@ -79,6 +88,7 @@ class VectorStore:
                     "source": hit["entity"]["source"],
                     "chunk_index": hit["entity"]["chunk_index"],
                     "score": round(hit["distance"], 4),
+                    "kb_id": hit["entity"].get("kb_id", ""),
                 })
         return hits
 

@@ -8,11 +8,14 @@ interface ChatState {
   streamContent: string;
   references: Reference[];
   error: string | null;
+  followupSuggestions: string[];
+  selectedKbId: number | null;
 
   addUserMessage: (content: string) => void;
   sendChat: (sessionId: number, content: string) => Promise<void>;
   clearStream: () => void;
   setMessages: (messages: Message[]) => void;
+  setSelectedKbId: (kbId: number | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -21,6 +24,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamContent: '',
   references: [],
   error: null,
+  followupSuggestions: [],
+  selectedKbId: null,
 
   addUserMessage: (content) => {
     set((s) => ({
@@ -32,7 +37,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendChat: async (sessionId, content) => {
-    set({ isStreaming: true, streamContent: '', references: [], error: null });
+    const { selectedKbId } = get();
+    set({ isStreaming: true, streamContent: '', references: [], error: null, followupSuggestions: [] });
 
     let fullText = '';
     try {
@@ -43,6 +49,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
         onSources: (refs) => {
           set({ references: refs });
+        },
+        onFollowup: (suggestions) => {
+          set({ followupSuggestions: suggestions });
         },
         onDone: (data) => {
           const state = get();
@@ -63,7 +72,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         onError: (code, message) => {
           set({ error: message, isStreaming: false });
         },
-      });
+      }, selectedKbId);
     } catch {
       set({ error: '网络连接失败，请检查网络后重试', isStreaming: false });
     }
@@ -71,4 +80,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearStream: () => set({ streamContent: '', isStreaming: false, error: null }),
   setMessages: (messages) => set({ messages }),
+  setSelectedKbId: (kbId) => set({ selectedKbId: kbId }),
 }));

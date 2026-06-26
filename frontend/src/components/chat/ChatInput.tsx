@@ -34,7 +34,7 @@ export function ChatInput({ onSend, disabled, maxLength = 500 }: Props) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="输入您的问题... (Enter 发送, Shift+Enter 换行)"
-            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm"
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-sm"
             rows={2}
             disabled={disabled}
           />
@@ -45,7 +45,7 @@ export function ChatInput({ onSend, disabled, maxLength = 500 }: Props) {
         <button
           type="submit"
           disabled={disabled || !input.trim() || input.length > maxLength}
-          className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-40 transition shrink-0"
+          className="p-2.5 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 disabled:opacity-40 transition shrink-0"
         >
           <Send size={18} />
         </button>

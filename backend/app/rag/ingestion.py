@@ -15,9 +15,13 @@ class DocumentIngestion:
         self.embedder = Embedder()
         self.vector_store = VectorStore()
 
-    def ingest_file(self, file_path: str) -> Dict:
+    def ingest_file(self, file_path: str, kb_id: str | None = None) -> Dict:
         """
         处理单个文件并入库
+
+        Args:
+            file_path: 文件路径
+            kb_id: 可选的知识库 ID
 
         Returns:
             {"success": True/False, "chunk_count": int, "milvus_ids": [...], "error": str|None}
@@ -39,7 +43,7 @@ class DocumentIngestion:
             embeddings = self.embedder.embed(chunk_texts)
 
             # 4. 批量写入 Milvus
-            milvus_ids = self.vector_store.insert_chunks(chunks, embeddings)
+            milvus_ids = self.vector_store.insert_chunks(chunks, embeddings, kb_id=kb_id)
 
             return {
                 "success": True,

@@ -14,7 +14,7 @@
 |---|------|------|
 | 前端 | React + TypeScript + Vite | React 19 / TS 5.x |
 | 后端 | Python FastAPI | 0.115+ |
-| LLM | DeepSeek API (deepseek-chat) | 兼容 OpenAI SDK |
+| LLM | DeepSeek API (deepseek-v4-flash) | 兼容 OpenAI SDK |
 | Embedding | BGE-M3 (BAAI/bge-m3) | sentence-transformers 3.x |
 | 向量库 | Milvus Lite (嵌入式) | pymilvus 2.4 |
 | 数据库 | MySQL | 8.0+ |
@@ -34,7 +34,7 @@ ICS/
 │   │   ├── database.py          # SQLAlchemy engine/session/Base
 │   │   ├── dependencies.py      # Depends(get_db, get_current_user_id)
 │   │   ├── api/                 # 路由层 (auth, sessions, chat, knowledge, feedback, stats)
-│   │   ├── services/            # 服务层 (业务编排)
+│   │   ├── services/            # 服务层 (auth_service, session_service, chat_service, knowledge_service, stats_service)
 │   │   ├── models/              # ORM 模型 (user, session, message, feedback, document)
 │   │   ├── schemas/             # Pydantic DTO
 │   │   └── rag/                 # RAG 核心引擎 (独立于 Web 层)
@@ -46,6 +46,7 @@ ICS/
 │   │       ├── prompt.py        #   System Prompt + 拼接
 │   │       ├── llm.py           #   DeepSeek API + 重试
 │   │       ├── stream.py        #   SSE 事件生成器
+│   │       ├── intent.py          #   意图识别与追问
 │   │       └── fallback.py      #   空检索兜底
 │   ├── db/init.sql              # 建表语句
 │   ├── example_docs/            # 测试知识库文档 (3 篇)
@@ -58,7 +59,7 @@ ICS/
 │   ├── src/
 │   │   ├── api/                 # HTTP 请求 + SSE 消费
 │   │   ├── stores/              # Zustand (auth, session, chat)
-│   │   ├── pages/               # Login, Register, Chat, Knowledge
+│   │   ├── pages/               # Login, Register, Chat, Knowledge, Stats
 │   │   ├── components/          # chat/, sidebar/, knowledge/, ui/
 │   │   ├── hooks/               # useSSE, useAuth
 │   │   ├── lib/                 # sseParser, utils
@@ -107,12 +108,13 @@ DEEPSEEK_API_KEY=          # DeepSeek API Key (用户提供)
 
 # === LLM ===
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MODEL=deepseek-v4-flash
 LLM_TIMEOUT=30             # LLM 超时秒数
 
 # === Embedding ===
-EMBEDDING_MODEL=BAAI/bge-m3
-EMBEDDING_DEVICE=cpu       # CPU 推理, GPU 可用 cuda
+EMBEDDING_MODEL=BAAI/bge-m3    # 或本地路径 (如 ./models/bge-m3)
+EMBEDDING_DEVICE=cpu           # CPU 推理, GPU 可用 cuda
+HF_HOME=./models               # HuggingFace 模型缓存路径
 
 # === 向量库 ===
 MILVUS_DB_PATH=./data/milvus/ics_knowledge.db

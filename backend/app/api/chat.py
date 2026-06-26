@@ -8,6 +8,7 @@ from app.dependencies import get_current_user_id
 from app.schemas.chat import ChatRequest
 from app.services import session_service, chat_service
 from app.rag.stream import generate_chat_stream
+from app.rag.intent import classify_intent
 
 router = APIRouter(prefix="/api/chat", tags=["聊天"])
 
@@ -33,10 +34,13 @@ async def chat(
     if not chat_service.check_and_increment_daily_limit(db, user_id):
         raise HTTPException(status_code=429, detail="今日提问次数已达上限")
 
-    # 4. 保存用户消息
-    session_service.create_message(db, session_id, "user", req.content)
+    # 4. 意图识别（先分类再保存消息）
+    intent_tag = req.intent if req.intent else classify_intent(req.content)
 
-    # 5. 获取历史消息
+    # 5. 保存用户消息
+    session_service.create_message(db, session_id, "user", req.content, intent_tag=intent_tag)
+
+    # 6. 获取历史消息
     messages = session_service.get_session_messages(db, session_id)
     history = [
         {"role": m.role.value, "content": m.content}
@@ -52,6 +56,9 @@ async def chat(
             query=req.content,
             session_id=session_id,
             history_messages=history,
+            intent_classify=False,
+            intent_tag=intent_tag,
+            kb_id=str(req.kb_id) if req.kb_id else None,
         ):
             # 解析 done 事件获取完整回答和引用
             if 'event: done' in sse_str:
@@ -72,6 +79,7 @@ async def chat(
                 session_id,
                 "assistant",
                 full_response,
+                intent_tag=intent_tag,
                 references=references,
             )
 

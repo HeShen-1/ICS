@@ -3,6 +3,7 @@ import { BASE_URL } from './client';
 export type SSECallback = {
   onToken: (text: string) => void;
   onSources: (references: Reference[]) => void;
+  onFollowup: (suggestions: string[]) => void;
   onDone: (data: { message_id: number | null; references?: Reference[] }) => void;
   onError: (code: string, message: string) => void;
 };
@@ -17,8 +18,14 @@ export async function sendMessage(
   sessionId: number,
   content: string,
   callbacks: SSECallback,
+  kbId?: number | null,
 ): Promise<void> {
   const token = localStorage.getItem('token');
+
+  const body: Record<string, unknown> = { content };
+  if (kbId !== undefined && kbId !== null) {
+    body.kb_id = kbId;
+  }
 
   const response = await fetch(`${BASE_URL}/chat/${sessionId}`, {
     method: 'POST',
@@ -26,7 +33,7 @@ export async function sendMessage(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -71,6 +78,9 @@ export async function sendMessage(
           case 'sources':
             callbacks.onSources(data.references || []);
             break;
+          case 'followup':
+            callbacks.onFollowup(data.suggestions || []);
+            break;
           case 'done':
             callbacks.onDone(data);
             break;
@@ -97,6 +107,9 @@ export async function sendMessage(
             break;
           case 'sources':
             callbacks.onSources(data.references || []);
+            break;
+          case 'followup':
+            callbacks.onFollowup(data.suggestions || []);
             break;
           case 'done':
             callbacks.onDone(data);

@@ -66,10 +66,26 @@ CREATE TABLE IF NOT EXISTS feedback (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 5. documents — 知识库文档表
+-- 5. knowledge_bases — 知识库表
+-- =====================================================
+CREATE TABLE IF NOT EXISTS knowledge_bases (
+    id INT AUTO_INCREMENT PRIMARY KEY COMMENT '知识库ID',
+    user_id INT NOT NULL COMMENT '所属用户ID',
+    name VARCHAR(100) NOT NULL COMMENT '知识库名称',
+    description TEXT COMMENT '知识库描述',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    CONSTRAINT fk_kb_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
+-- 6. documents — 知识库文档表
 -- =====================================================
 CREATE TABLE IF NOT EXISTS documents (
     id INT AUTO_INCREMENT PRIMARY KEY COMMENT '文档ID',
+    user_id INT NOT NULL COMMENT '上传用户ID',
+    kb_id INT DEFAULT NULL COMMENT '所属知识库ID',
     name VARCHAR(255) NOT NULL COMMENT '文档名称',
     file_type ENUM('txt', 'md', 'pdf') NOT NULL COMMENT '文件格式',
     status ENUM('processing', 'ready', 'failed') DEFAULT 'processing' COMMENT '处理状态',
@@ -77,11 +93,17 @@ CREATE TABLE IF NOT EXISTS documents (
     file_size INT DEFAULT 0 COMMENT '文件大小(bytes)',
     milvus_ids JSON DEFAULT NULL COMMENT 'Milvus向量ID数组',
     error_msg TEXT DEFAULT NULL COMMENT '失败原因',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
+    CONSTRAINT fk_documents_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_documents_kb
+        FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id)
+        ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 6. daily_question_count — 每日提问计数表
+-- 7. daily_question_count — 每日提问计数表
 -- =====================================================
 CREATE TABLE IF NOT EXISTS daily_question_count (
     id INT AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
@@ -102,3 +124,7 @@ CREATE INDEX idx_messages_session_id ON messages(session_id);
 CREATE INDEX idx_feedback_message_id ON feedback(message_id);
 CREATE INDEX idx_sessions_updated_at ON sessions(updated_at DESC);
 CREATE INDEX idx_messages_created_at ON messages(created_at ASC);
+CREATE INDEX idx_kb_user_id ON knowledge_bases(user_id);
+CREATE INDEX idx_documents_user_id ON documents(user_id);
+CREATE INDEX idx_documents_kb_id ON documents(kb_id);
+CREATE INDEX idx_documents_status ON documents(status);

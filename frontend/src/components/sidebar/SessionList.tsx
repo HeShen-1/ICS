@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { listSessions, createSession } from '../../api/sessions';
 import type { Session } from '../../api/sessions';
 import { useSessionStore } from '../../stores/sessionStore';
-import { MessageSquare, Plus, LogOut, Database } from 'lucide-react';
+import { MessageSquare, Plus, LogOut, Database, BarChart3, Bot } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
 export function SessionList() {
@@ -32,7 +32,7 @@ export function SessionList() {
       <div className="p-4 border-b border-gray-700">
         <button
           onClick={handleNew}
-          className="w-full flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition text-sm font-medium"
+          className="w-full flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition text-sm font-medium"
         >
           <Plus size={16} /> 新建会话
         </button>
@@ -65,6 +65,18 @@ export function SessionList() {
           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition"
         >
           <Database size={14} /> 知识库管理
+        </button>
+        <button
+          onClick={() => navigate('/stats')}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition"
+        >
+          <BarChart3 size={14} /> 管理后台
+        </button>
+        <button
+          onClick={() => navigate('/agent')}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition"
+        >
+          <Bot size={14} /> Agent 拆解
         </button>
         <button
           onClick={() => { logout(); navigate('/login'); }}

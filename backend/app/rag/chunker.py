@@ -9,8 +9,11 @@ class TextChunker:
     """文本分块器"""
 
     def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50):
-        if chunk_overlap >= chunk_size:
-            raise ValueError(f"chunk_overlap ({chunk_overlap}) must be less than chunk_size ({chunk_size})")
+        if chunk_overlap > chunk_size // 2:
+            raise ValueError(
+                f"chunk_overlap ({chunk_overlap}) must be at most half "
+                f"of chunk_size ({chunk_size}), got {chunk_overlap} > {chunk_size // 2}"
+            )
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
@@ -76,6 +79,7 @@ class TextChunker:
                 if len(para) > self.chunk_size:
                     for i in range(0, len(para), self.chunk_size - self.chunk_overlap):
                         chunks.append(para[i : i + self.chunk_size])
+                    current = ""  # 长段落切分后重置 current
                 else:
                     current = para
 

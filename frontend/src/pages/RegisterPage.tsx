@@ -48,28 +48,28 @@ export function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">手机号</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="选填" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="选填" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="选填" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="选填" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="至少 6 位" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" required />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="至少 6 位" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" required />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">确认密码</label>
-            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="再次输入密码" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" required />
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="再次输入密码" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" required />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button type="submit" disabled={loading} className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition">
+          <button type="submit" disabled={loading} className="w-full py-2.5 bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-600 disabled:opacity-50 transition">
             {loading ? '注册中...' : '注册'}
           </button>
         </form>
         <p className="text-center text-sm text-gray-500 mt-6">
           已有账号？
-          <Link to="/login" className="text-blue-600 hover:underline ml-1">去登录</Link>
+          <Link to="/login" className="text-indigo-600 hover:underline ml-1">去登录</Link>
         </p>
       </div>
     </div>

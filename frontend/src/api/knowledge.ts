@@ -10,13 +10,30 @@ export interface Document {
   created_at: string;
 }
 
-export async function listDocuments(): Promise<{ documents: Document[]; total: number }> {
-  return request('/knowledge/list');
+export interface KnowledgeBase {
+  id: number;
+  name: string;
+  description: string;
+  document_count: number;
+  created_at: string;
 }
 
-export async function uploadDocument(file: File): Promise<Document> {
+export interface KnowledgeBaseCreate {
+  name: string;
+  description?: string;
+}
+
+export async function listDocuments(kbId?: number): Promise<{ documents: Document[]; total: number }> {
+  const query = kbId !== undefined ? `?kb_id=${kbId}` : '';
+  return request(`/knowledge/list${query}`);
+}
+
+export async function uploadDocument(file: File, kbId?: number): Promise<Document> {
   const formData = new FormData();
   formData.append('file', file);
+  if (kbId !== undefined) {
+    formData.append('kb_id', String(kbId));
+  }
   const token = localStorage.getItem('token');
   const res = await fetch('/api/knowledge/upload', {
     method: 'POST',
@@ -32,4 +49,26 @@ export async function uploadDocument(file: File): Promise<Document> {
 
 export async function deleteDocument(id: number): Promise<void> {
   return request(`/knowledge/${id}`, { method: 'DELETE' });
+}
+
+export async function getKnowledgeBases(): Promise<{ knowledge_bases: KnowledgeBase[]; total: number }> {
+  return request('/knowledge/bases');
+}
+
+export async function createKnowledgeBase(data: KnowledgeBaseCreate): Promise<KnowledgeBase> {
+  return request('/knowledge/bases', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateKnowledgeBase(id: number, data: Partial<KnowledgeBaseCreate>): Promise<KnowledgeBase> {
+  return request(`/knowledge/bases/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteKnowledgeBase(id: number): Promise<void> {
+  return request(`/knowledge/bases/${id}`, { method: 'DELETE' });
 }

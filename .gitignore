@@ -40,3 +40,4 @@ AI开发工程师笔试题.md
 # HuggingFace cache (keep out of repo)
 *.bin
 *.safetensors
+models/

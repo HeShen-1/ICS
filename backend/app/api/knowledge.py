@@ -1,9 +1,16 @@
 """知识库接口"""
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user_id
-from app.schemas.knowledge import DocumentOut, DocumentListResponse
+from app.schemas.knowledge import (
+    DocumentOut,
+    DocumentListResponse,
+    KnowledgeBaseCreate,
+    KnowledgeBaseUpdate,
+    KnowledgeBaseOut,
+    KnowledgeBaseListResponse,
+)
 from app.services import knowledge_service
 
 router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
@@ -11,12 +18,110 @@ router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
 ALLOWED_EXTENSIONS = {"txt", "md", "pdf"}
 
 
-@router.post("/upload", response_model=DocumentOut)
-async def upload(
-    file: UploadFile = File(...),
+def _doc_to_out(doc) -> DocumentOut:
+    """将 Document ORM 对象转为 DocumentOut"""
+    return DocumentOut(
+        id=doc.id,
+        name=doc.name,
+        file_type=doc.file_type.value if hasattr(doc.file_type, 'value') else doc.file_type,
+        status=doc.status.value if hasattr(doc.status, 'value') else doc.status,
+        chunk_count=doc.chunk_count,
+        file_size=doc.file_size,
+        kb_id=doc.kb_id,
+        kb_name=doc.kb.name if doc.kb else None,
+        created_at=doc.created_at,
+    )
+
+
+# ===================== 知识库 CRUD =====================
+
+@router.post("/bases", response_model=KnowledgeBaseOut)
+def create_knowledge_base(
+    body: KnowledgeBaseCreate,
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
+    """创建知识库"""
+    kb = knowledge_service.create_kb(db, user_id, body.name, body.description)
+    return KnowledgeBaseOut(
+        id=kb.id,
+        user_id=kb.user_id,
+        name=kb.name,
+        description=kb.description,
+        document_count=0,
+        created_at=kb.created_at,
+    )
+
+
+@router.get("/bases", response_model=KnowledgeBaseListResponse)
+def list_knowledge_bases(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """获取知识库列表"""
+    kbs = knowledge_service.get_kb_list(db, user_id)
+    return KnowledgeBaseListResponse(
+        knowledge_bases=[
+            KnowledgeBaseOut(
+                id=k.id,
+                user_id=k.user_id,
+                name=k.name,
+                description=k.description,
+                document_count=len(k.documents),
+                created_at=k.created_at,
+            )
+            for k in kbs
+        ],
+        total=len(kbs),
+    )
+
+
+@router.put("/bases/{kb_id}", response_model=KnowledgeBaseOut)
+def update_knowledge_base(
+    kb_id: int,
+    body: KnowledgeBaseUpdate,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """更新知识库"""
+    try:
+        kb = knowledge_service.update_kb(db, kb_id, user_id, body.name, body.description)
+        return KnowledgeBaseOut(
+            id=kb.id,
+            user_id=kb.user_id,
+            name=kb.name,
+            description=kb.description,
+            document_count=len(kb.documents),
+            created_at=kb.created_at,
+        )
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
+
+
+@router.delete("/bases/{kb_id}")
+def delete_knowledge_base(
+    kb_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """删除知识库"""
+    try:
+        knowledge_service.delete_kb(db, kb_id, user_id)
+        return {"message": "删除成功"}
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
+
+
+# ===================== 文档管理 =====================
+
+@router.post("/upload", response_model=DocumentOut)
+async def upload(
+    file: UploadFile = File(...),
+    kb_id: int | None = Form(None),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """上传文档"""
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(400, f"不支持的文件格式: {ext}")
@@ -26,37 +131,20 @@ async def upload(
     if len(content) > max_size:
         raise HTTPException(400, "文件大小不能超过 10MB")
 
-    doc = knowledge_service.upload_document(db, user_id, content, file.filename)
-    return DocumentOut(
-        id=doc.id,
-        name=doc.name,
-        file_type=doc.file_type.value if hasattr(doc.file_type, 'value') else doc.file_type,
-        status=doc.status.value if hasattr(doc.status, 'value') else doc.status,
-        chunk_count=doc.chunk_count,
-        file_size=doc.file_size,
-        created_at=doc.created_at,
-    )
+    doc = knowledge_service.upload_document(db, user_id, content, file.filename, kb_id=kb_id)
+    return _doc_to_out(doc)
 
 
 @router.get("/list", response_model=DocumentListResponse)
 def list_docs(
+    kb_id: int | None = Query(None),
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    docs = knowledge_service.list_documents(db, user_id)
+    """列出文档, 可按知识库过滤"""
+    docs = knowledge_service.list_documents(db, user_id, kb_id=kb_id)
     return DocumentListResponse(
-        documents=[
-            DocumentOut(
-                id=d.id,
-                name=d.name,
-                file_type=d.file_type.value if hasattr(d.file_type, 'value') else d.file_type,
-                status=d.status.value if hasattr(d.status, 'value') else d.status,
-                chunk_count=d.chunk_count,
-                file_size=d.file_size,
-                created_at=d.created_at,
-            )
-            for d in docs
-        ],
+        documents=[_doc_to_out(d) for d in docs],
         total=len(docs),
     )
 
@@ -67,6 +155,7 @@ def delete_doc(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
+    """删除文档"""
     try:
         knowledge_service.delete_document(db, doc_id, user_id)
         return {"message": "删除成功"}

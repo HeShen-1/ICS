@@ -37,7 +37,7 @@ export function LoginPage() {
               value={account}
               onChange={(e) => setAccount(e.target.value)}
               placeholder="请输入手机号或邮箱"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
               required
             />
           </div>
@@ -48,7 +48,7 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="请输入密码"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
               required
             />
           </div>
@@ -56,14 +56,14 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition"
+            className="w-full py-2.5 bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-600 disabled:opacity-50 transition"
           >
             {loading ? '登录中...' : '登录'}
           </button>
         </form>
         <p className="text-center text-sm text-gray-500 mt-6">
           还没有账号？
-          <Link to="/register" className="text-blue-600 hover:underline ml-1">立即注册</Link>
+          <Link to="/register" className="text-indigo-600 hover:underline ml-1">立即注册</Link>
         </p>
       </div>
     </div>

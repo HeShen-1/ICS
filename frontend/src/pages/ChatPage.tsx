@@ -4,12 +4,13 @@ import { SessionList } from '../components/sidebar/SessionList';
 import { ChatBubble } from '../components/chat/ChatBubble';
 import { ChatInput } from '../components/chat/ChatInput';
 import { StreamingText } from '../components/chat/StreamingText';
+import { KbSelector } from '../components/chat/KbSelector';
 import { useChatStore } from '../stores/chatStore';
 import { getSession } from '../api/sessions';
 
 export function ChatPage() {
   const { sessionId } = useParams();
-  const { messages, isStreaming, streamContent, error, setMessages, addUserMessage, sendChat } = useChatStore();
+  const { messages, isStreaming, streamContent, error, followupSuggestions, setMessages, addUserMessage, sendChat } = useChatStore();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,6 +43,8 @@ export function ChatPage() {
           </h2>
         </div>
 
+        <KbSelector />
+
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {messages.length === 0 && !isStreaming && (
             <div className="flex items-center justify-center h-full text-gray-400 text-sm">
@@ -54,6 +57,20 @@ export function ChatPage() {
           ))}
 
           {isStreaming && <StreamingText content={streamContent} />}
+
+          {!isStreaming && followupSuggestions.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4 justify-center">
+              {followupSuggestions.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSend(q)}
+                  className="px-4 py-2 text-sm text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-full hover:bg-indigo-100 transition-colors"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
 
           {error && (
             <div className="flex justify-center mb-4">
