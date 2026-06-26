@@ -11,9 +11,18 @@ flowchart TD
     B -->|超过每日100次| B2[返回错误: 次数超限]
     B -->|通过| C[保存用户消息到 MySQL]
 
-    C --> D[向量检索阶段]
+    C --> C_INTENT[意图识别: 关键词分类器]
+    C_INTENT --> C_TAG[标注 intent_tag: 产品咨询/售后/闲聊/投诉]
+
+    C_TAG --> K{知识库路由}
+    K -->|请求体含 kb_id| K1[使用指定知识库]
+    K -->|未指定 kb_id| K2[多知识库投票路由]
+    K1 --> D
+    K2 --> D
+
+    D[向量检索阶段]
     D --> D1[BGE-M3 将问题转为 1024维向量]
-    D1 --> D2[Milvus 向量相似度搜索]
+    D1 --> D2[Milvus 向量相似度搜索 + kb_id 过滤]
     D2 --> D3{检索结果判断}
 
     D3 -->|所有片段 score < 0.65| E1[返回兜底话术]
@@ -44,9 +53,10 @@ flowchart TD
     G2 -->|成功| H[SSE 流式输出阶段]
     H --> H1[event: token 逐字推送]
     H1 --> H2[LLM 输出完成]
-    H2 --> H3[event: sources 引用来源]
-    H3 --> H4[event: done 流结束]
-    H4 --> I[保存 AI 回答到 MySQL]
+    H2 --> H3[event: followup 追问建议]
+    H3 --> H4[event: sources 引用来源]
+    H4 --> H5[event: done 流结束]
+    H5 --> I[保存 AI 回答到 MySQL]
     I --> Z[结束]
 ```
 
@@ -225,3 +235,183 @@ response = await client.chat.completions.create(
 | 向量库 | Chroma | Milvus | **Milvus** | 用户指定 |
 | 流式协议 | SSE | WebSocket | **SSE** | 单向数据流，更简单 |
 | PDF 解析 | 手动写 | LlamaIndex | **LlamaIndex Reader** | 复用成熟方案 |
+
+## 7. 意图识别
+
+### 7.1 关键词分类器
+
+意图识别采用轻量级关键词匹配方案，无需额外模型调用，在向量检索之前完成分类。
+
+```python
+INTENT_RULES = {
+    "售后问题": ["退", "换", "退款", "退货", "投诉", "质量问题", "坏了", "修"],
+    "产品咨询": ["多少钱", "价格", "功能", "怎么用", "版本", "支持", "配置"],
+    "闲聊":     ["你好", "谢谢", "再见", "你是谁", "天气"],
+    "投诉":     ["投诉", "不满", "差评", "客服态度", "维权"],
+}
+```
+
+**分类流程**：
+1. 接收用户问题后，按规则表顺序遍历
+2. 命中任一关键词即返回对应标签
+3. 未命中则默认归为"产品咨询"
+4. 意图标签写入 `messages.intent_tag`，供后续统计分析
+
+### 7.2 设计思路
+
+| 设计点 | 说明 |
+|--------|------|
+| 无需 LLM | 轻量关键词匹配，零延迟，零成本 |
+| 规则可扩展 | INTENT_RULES 字典可按业务需求增删 |
+| 优先级顺序 | 按规则表顺序匹配，首次命中即返回 |
+| 默认兜底 | 未命中归入"产品咨询"，避免空标签 |
+
+## 8. 多知识库自动路由
+
+### 8.1 路由策略
+
+当用户未指定 `kb_id` 时，系统使用**投票路由**策略自动选择最相关的知识库：
+
+```
+1. 意图识别 → 获取 intent_tag
+2. 按 kb_id 分组，对每个知识库独立检索
+3. 对每个 kb 的 top-K 结果进行投票：
+   - 片段相似度 ≥ 0.65 的记 1 票
+   - 片段相似度 ≥ 0.80 的记 2 票（高置信加权）
+4. 选择票数最高的知识库
+5. 如多个知识库票数相同，选择片段平均分最高的
+6. 如所有知识库均无有效结果（票数 0），返回兜底话术
+```
+
+### 8.2 投票算法伪代码
+
+```python
+def vote_kb(query_embedding, kb_ids, top_k=3):
+    results = {}  # kb_id -> vote_count
+
+    for kb_id in kb_ids:
+        chunks = vector_store.search(
+            query_embedding,
+            top_k=top_k,
+            threshold=0.65,
+            filter={"kb_id": kb_id}
+        )
+        votes = sum(
+            2 if c["score"] >= 0.80 else 1
+            for c in chunks if c["score"] >= 0.65
+        )
+        results[kb_id] = votes
+
+    # 选票数最高的知识库；平票时比平均分
+    best_kb = max(results, key=lambda k: (
+        results[k],
+        avg_score_of(k) if results[k] > 0 else 0
+    ))
+
+    if results[best_kb] == 0:
+        return None  # 所有 KB 无有效结果 → 兜底
+
+    return best_kb
+```
+
+### 8.3 路由决策表
+
+| 条件 | 行为 |
+|------|------|
+| 请求指定 `kb_id` | 直接使用该知识库检索 |
+| 未指定 + 单知识库 | 直接检索该知识库 |
+| 未指定 + 多知识库 | 投票路由选最优知识库 |
+| 路由结果为空 | 返回兜底话术 |
+
+## 9. AI Agent 任务拆解
+
+### 9.1 功能概述
+
+AI Agent 模块将自然语言需求拆解为微服务层面的改动分析任务列表。输入一段用户需求描述，输出结构化的排查/改动任务清单。
+
+### 9.2 处理流程
+
+```
+用户需求文本
+  → System Prompt: "你是软件架构分析专家..."
+  → LLM 分析需求，关联微服务拓扑
+  → 结构化输出：任务列表 (title, description, service, priority)
+  → 返回 JSON
+```
+
+### 9.3 Prompt 设计
+
+```
+## 角色
+你是软件架构分析专家，擅长将用户需求拆解为微服务层面的改动分析任务。
+
+## 输入
+一段用户反馈的需求或问题。
+
+## 输出格式
+必须返回严格的 JSON 数组，每个元素包含：
+- title: 任务标题（简短）
+- description: 任务详细描述（1-2 句）
+- service: 涉及的微服务名称
+- priority: high / medium / low
+
+## 约束
+- 只返回 JSON，不包含任何解释文字
+- 任务数量 2-5 个
+- 优先关注 root cause 排查，其次才是修复方案
+```
+
+### 9.4 LLM 调用参数
+
+```python
+response = await client.chat.completions.create(
+    model="deepseek-chat",
+    messages=messages,
+    temperature=0.3,
+    max_tokens=1024,
+    response_format={"type": "json_object"},  # 强制 JSON 输出
+)
+```
+
+### 9.5 示例
+
+**输入**：用户下单后未收到确认短信，怀疑系统未发送通知
+
+**输出**：
+
+```json
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "排查短信发送服务",
+      "description": "检查短信网关日志，确认请求是否到达、是否有错误响应",
+      "service": "sms-service",
+      "priority": "high"
+    },
+    {
+      "id": 2,
+      "title": "核查订单状态",
+      "description": "查询订单表确认订单是否创建成功、状态是否为已支付",
+      "service": "order-service",
+      "priority": "high"
+    },
+    {
+      "id": 3,
+      "title": "检查通知规则",
+      "description": "确认用户通知偏好设置，排查是否有规则过滤导致未发送",
+      "service": "notification-service",
+      "priority": "medium"
+    }
+  ]
+}
+```
+
+### 9.6 边界与限制
+
+| 限制 | 说明 |
+|------|------|
+| 单次输入 ≤ 1000 字 | 超长需求建议分段拆解 |
+| 任务数 2-5 个 | 超出范围由 LLM 自行裁剪 |
+| 不执行实际代码 | Agent 仅做分析规划，不修改代码或配置 |
+| 微服务列表来自 LLM 推断 | 未对接实际服务注册中心 |

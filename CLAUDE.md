@@ -48,8 +48,12 @@ ICS/
 │   │       ├── stream.py        #   SSE 事件生成器
 │   │       ├── intent.py          #   意图识别与追问
 │   │       └── fallback.py      #   空检索兜底
+│   │   └── agent/               # 多知识库路由与问题拆解
+│   │       ├── decomposer.py    #   复杂问题拆解
+│   │       └── prompt.py        #   路由 Prompt 模板
+│   ├── tests/                   # 后端测试 (98 个用例, 84% 覆盖率)
 │   ├── db/init.sql              # 建表语句
-│   ├── example_docs/            # 测试知识库文档 (3 篇)
+│   ├── example_docs/            # 测试知识库文档 (7 篇: FAQ/产品介绍/退换货/用户协议/隐私政策/技术支持/版本更新)
 │   ├── data/                    # 运行时数据 (uploads/, milvus/) — gitignore
 │   ├── init_knowledge.py        # 一键初始化脚本
 │   ├── requirements.txt
@@ -59,7 +63,7 @@ ICS/
 │   ├── src/
 │   │   ├── api/                 # HTTP 请求 + SSE 消费
 │   │   ├── stores/              # Zustand (auth, session, chat)
-│   │   ├── pages/               # Login, Register, Chat, Knowledge, Stats
+│   │   ├── pages/               # Login, Register, Chat, Knowledge, Stats, Agent
 │   │   ├── components/          # chat/, sidebar/, knowledge/, ui/
 │   │   ├── hooks/               # useSSE, useAuth
 │   │   ├── lib/                 # sseParser, utils
@@ -189,6 +193,14 @@ curl http://localhost:8000/api/health
 curl -X POST http://localhost:8000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"phone":"13800000001","password":"123456"}'
+
+# 运行测试
+cd backend
+pytest tests/ -q                      # 98 个后端测试 (84% 覆盖率)
+pytest tests/ --cov=app --cov-report=term-missing
+
+cd frontend
+npx vitest run                        # 33 个前端测试 (3 个测试文件)
 ```
 
 ## RAG 模块接口约定
@@ -255,9 +267,25 @@ generate_chat_stream(query, session_id, history) -> AsyncGenerator[str, None]
 ## 约束
 
 - ✅ DeepSeek API Key 由用户提供，`.env` 不入库
-- ✅ 初始知识库使用 `example_docs/` 下 3 篇测试文档
+- ✅ 初始知识库使用 `example_docs/` 下 7 篇测试文档
 - ✅ RAG 核心链路手动实现（chunking/embedding/search/prompt/stream），文档解析可复用 LlamaIndex
 - ✅ 流式输出使用 SSE (text/event-stream)
 - ✅ 前端不得直接调用 LLM API，所有 AI 调用走后端
 - ❌ 不提交真实 API Key
 - ❌ 不用 WebSocket（除非有明确理由）
+
+## 加分项实现
+
+| 加分项 | 状态 | 实现位置 |
+|--------|------|----------|
+| 意图识别 | 已实现 | `rag/intent.py` — 关键词+规则引擎，区分咨询/投诉/闲聊/未知 |
+| 追问支持 | 已实现 | `rag/intent.py` — 对话历史分析，保留上一轮检索上下文 |
+| 管理后台数据看板 | 已实现 | `StatsPage` + `services/stats_service.py` + `api/stats.py` |
+| 检索保障 | 已实现 | 相似度阈值过滤 + 空检索兜底 + LLM 3次重试 + 来源强制标注 |
+| 多知识库路由 | 已实现 | `agent/decomposer.py` + `agent/prompt.py` — 问题拆解与 KB 路由 |
+
+## 测试
+
+- **后端**: 98 个 pytest 用例 (84% 覆盖率)，覆盖 rag/ api/ services/ agent/
+- **前端**: 33 个 vitest 用例 (3 个测试文件)，覆盖 stores/ lib/ components/
+- **合计**: 131 个测试用例
