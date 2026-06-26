@@ -6,6 +6,9 @@ from app.dependencies import get_current_user_id
 from app.schemas.knowledge import (
     DocumentOut,
     DocumentListResponse,
+    DocumentContentOut,
+    ChunkOut,
+    DocumentChunksOut,
     KnowledgeBaseCreate,
     KnowledgeBaseUpdate,
     KnowledgeBaseOut,
@@ -146,6 +149,49 @@ def list_docs(
     return DocumentListResponse(
         documents=[_doc_to_out(d) for d in docs],
         total=len(docs),
+    )
+
+
+@router.get("/{doc_id}/content", response_model=DocumentContentOut)
+def get_doc_content(
+    doc_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """获取文档原始内容"""
+    try:
+        doc = knowledge_service.get_document(db, doc_id, user_id)
+        content = knowledge_service.get_document_content(db, doc_id, user_id)
+        return DocumentContentOut(id=doc.id, name=doc.name, content=content)
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(500, detail=f"读取文档失败: {str(e)}")
+
+
+@router.get("/{doc_id}/chunks", response_model=DocumentChunksOut)
+def get_doc_chunks(
+    doc_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """获取文档的所有分块"""
+    try:
+        doc = knowledge_service.get_document(db, doc_id, user_id)
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
+
+    from app.rag.vector_store import VectorStore
+    vs = VectorStore()
+    chunks = vs.query_by_source(doc.name)
+
+    return DocumentChunksOut(
+        id=doc.id,
+        name=doc.name,
+        chunks=[
+            ChunkOut(chunk_index=c["chunk_index"], text=c["text"], source=c["source"])
+            for c in chunks
+        ],
     )
 
 

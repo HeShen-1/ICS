@@ -114,6 +114,32 @@ class VectorStore:
         )
         return result[0].get("count(*)", 0) if result else 0
 
+    def query_by_source(self, source: str, limit: int = 1000) -> List[Dict]:
+        """按文档来源查询所有分块
+
+        Args:
+            source: 文档名称 (Milvus source 字段)
+            limit: 最大返回数量
+
+        Returns:
+            [{text, source, chunk_index, id}, ...]
+        """
+        results = self.client.query(
+            collection_name=self.COLLECTION_NAME,
+            filter=f'source == "{source}"',
+            output_fields=["text", "source", "chunk_index"],
+            limit=limit,
+        )
+        return [
+            {
+                "text": r["text"],
+                "source": r["source"],
+                "chunk_index": r["chunk_index"],
+                "id": r["id"],
+            }
+            for r in results
+        ]
+
     def drop_collection(self):
         """删除整个 collection（重置用）"""
         if self.client.has_collection(self.COLLECTION_NAME):

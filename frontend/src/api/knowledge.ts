@@ -72,3 +72,29 @@ export async function updateKnowledgeBase(id: number, data: Partial<KnowledgeBas
 export async function deleteKnowledgeBase(id: number): Promise<void> {
   return request(`/knowledge/bases/${id}`, { method: 'DELETE' });
 }
+
+export interface DocumentContent {
+  id: number;
+  name: string;
+  content: string;
+}
+
+export interface ChunkInfo {
+  chunk_index: number;
+  text: string;
+  source: string;
+}
+
+export interface DocumentChunks {
+  id: number;
+  name: string;
+  chunks: ChunkInfo[];
+}
+
+export async function getDocumentContent(docId: number): Promise<DocumentContent> {
+  return request(`/knowledge/${docId}/content`);
+}
+
+export async function getDocumentChunks(docId: number): Promise<DocumentChunks> {
+  return request(`/knowledge/${docId}/chunks`);
+}

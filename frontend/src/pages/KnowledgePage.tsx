@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   listDocuments, uploadDocument, deleteDocument,
   getKnowledgeBases, createKnowledgeBase, deleteKnowledgeBase,
+  getDocumentContent, getDocumentChunks,
   type Document, type KnowledgeBase,
+  type DocumentContent, type DocumentChunks,
 } from '../api/knowledge';
-import { ArrowLeft, Upload, Trash2, Loader2, CheckCircle, XCircle, Plus, Layers, X } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Loader2, CheckCircle, XCircle, Plus, Layers, X, Eye, FileText, AlertCircle } from 'lucide-react';
 
 const statusConfig: Record<string, { icon: typeof CheckCircle; color: string; label: string }> = {
   ready: { icon: CheckCircle, color: 'text-green-500', label: '就绪' },
@@ -26,6 +28,22 @@ export function KnowledgePage() {
   const [newKbDesc, setNewKbDesc] = useState('');
   const [creatingKb, setCreatingKb] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Issue 1: KB selection for upload
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showKbSelect, setShowKbSelect] = useState(false);
+
+  // Issue 2: View content & chunks
+  const [viewingContent, setViewingContent] = useState(false);
+  const [viewingChunks, setViewingChunks] = useState(false);
+  const [contentData, setContentData] = useState<DocumentContent | null>(null);
+  const [chunksData, setChunksData] = useState<DocumentChunks | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [loadingChunks, setLoadingChunks] = useState(false);
+
+  // Issue 3: Delete KB confirmation
+  const [deletingKb, setDeletingKb] = useState<KnowledgeBase | null>(null);
+
   const navigate = useNavigate();
 
   const fetchDocs = async () => {
@@ -53,9 +71,19 @@ export function KnowledgePage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (selectedKbId === null) {
+      if (kbs.length > 0) {
+        setPendingFile(file);
+        setShowKbSelect(true);
+      } else {
+        setError('请先创建一个知识库');
+      }
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
     setUploading(true);
     try {
-      await uploadDocument(file, selectedKbId ?? undefined);
+      await uploadDocument(file, selectedKbId);
       await fetchDocs();
       await fetchKbs();
     } catch {
@@ -63,6 +91,21 @@ export function KnowledgePage() {
     }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const handleKbSelectUpload = async (kbId: number) => {
+    if (!pendingFile) return;
+    setShowKbSelect(false);
+    setUploading(true);
+    try {
+      await uploadDocument(pendingFile, kbId);
+      await fetchDocs();
+      await fetchKbs();
+    } catch {
+      setError('上传文档失败');
+    }
+    setUploading(false);
+    setPendingFile(null);
   };
 
   const handleDelete = async (id: number) => {
@@ -74,6 +117,32 @@ export function KnowledgePage() {
     } catch {
       setError('删除文档失败');
     }
+  };
+
+  const handleViewContent = async (docId: number) => {
+    setLoadingContent(true);
+    setViewingContent(true);
+    try {
+      const data = await getDocumentContent(docId);
+      setContentData(data);
+    } catch {
+      setError('获取文档内容失败');
+      setViewingContent(false);
+    }
+    setLoadingContent(false);
+  };
+
+  const handleViewChunks = async (docId: number) => {
+    setLoadingChunks(true);
+    setViewingChunks(true);
+    try {
+      const data = await getDocumentChunks(docId);
+      setChunksData(data);
+    } catch {
+      setError('获取分块列表失败');
+      setViewingChunks(false);
+    }
+    setLoadingChunks(false);
   };
 
   const handleCreateKb = async (e: React.FormEvent) => {
@@ -92,16 +161,21 @@ export function KnowledgePage() {
     setCreatingKb(false);
   };
 
-  const handleDeleteKb = async (id: number) => {
-    if (!confirm('确认删除此知识库？知识库中的所有文档也将被删除。')) return;
+  const handleDeleteKb = (kb: KnowledgeBase) => {
+    setDeletingKb(kb);
+  };
+
+  const confirmDeleteKb = async () => {
+    if (!deletingKb) return;
     try {
-      await deleteKnowledgeBase(id);
-      if (selectedKbId === id) setSelectedKbId(null);
+      await deleteKnowledgeBase(deletingKb.id);
+      if (selectedKbId === deletingKb.id) setSelectedKbId(null);
       await fetchKbs();
       await fetchDocs();
     } catch {
       setError('删除知识库失败');
     }
+    setDeletingKb(null);
   };
 
   return (
@@ -201,7 +275,7 @@ export function KnowledgePage() {
                   <span className="ml-1 text-gray-400">({kb.document_count})</span>
                 </button>
                 <button
-                  onClick={() => handleDeleteKb(kb.id)}
+                  onClick={() => handleDeleteKb(kb)}
                   className="px-1.5 py-1.5 text-xs rounded-r-lg border border-l-0 border-gray-200 bg-white text-gray-400 hover:text-red-500 transition"
                   title="删除知识库"
                 >
@@ -256,9 +330,25 @@ export function KnowledgePage() {
                     <td className="px-4 py-3 text-xs text-gray-500">{doc.chunk_count} 块</td>
                     <td className="px-4 py-3 text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString('zh-CN')}</td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => handleDelete(doc.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition">
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center justify-end gap-0.5">
+                        <button
+                          onClick={() => handleViewContent(doc.id)}
+                          className="p-1.5 text-gray-400 hover:text-indigo-500 transition"
+                          title="查看原文"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleViewChunks(doc.id)}
+                          className="p-1.5 text-gray-400 hover:text-indigo-500 transition"
+                          title="查看分块"
+                        >
+                          <FileText size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(doc.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -273,6 +363,139 @@ export function KnowledgePage() {
             </tbody>
           </table>
         </div>
+
+        {/* KB Selection Modal (for upload when no KB selected) */}
+        {showKbSelect && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => { setShowKbSelect(false); setPendingFile(null); }}>
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-sm font-semibold text-gray-800 mb-4">选择目标知识库</h3>
+              {kbs.length === 0 ? (
+                <div className="text-center py-4">
+                  <AlertCircle size={40} className="mx-auto mb-3 text-amber-500" />
+                  <p className="text-sm text-gray-600 mb-4">请先创建一个知识库</p>
+                  <button
+                    onClick={() => { setShowKbSelect(false); setPendingFile(null); setShowCreateKb(true); }}
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 transition"
+                  >
+                    新建知识库
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {kbs.map((kb) => (
+                    <button
+                      key={kb.id}
+                      onClick={() => handleKbSelectUpload(kb.id)}
+                      className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition"
+                    >
+                      <div className="text-sm font-medium text-gray-700">{kb.name}</div>
+                      {kb.description && <div className="text-xs text-gray-400 mt-0.5">{kb.description}</div>}
+                      <div className="text-xs text-gray-400 mt-0.5">{kb.document_count} 篇文档</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => { setShowKbSelect(false); setPendingFile(null); }}
+                  className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Document Content Modal */}
+        {viewingContent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => { setViewingContent(false); setContentData(null); }}>
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-800">查看原文 — {contentData?.name || ''}</h3>
+                <button
+                  onClick={() => { setViewingContent(false); setContentData(null); }}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 transition"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {loadingContent ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 size={24} className="text-indigo-500 animate-spin" />
+                  </div>
+                ) : (
+                  <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{contentData?.content || ''}</pre>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Document Chunks Modal */}
+        {viewingChunks && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => { setViewingChunks(false); setChunksData(null); }}>
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-800">分块列表 — {chunksData?.name || ''}（{chunksData?.chunks.length || 0} 块）</h3>
+                <button
+                  onClick={() => { setViewingChunks(false); setChunksData(null); }}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 transition"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {loadingChunks ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 size={24} className="text-indigo-500 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {chunksData?.chunks.map((chunk) => (
+                      <div key={chunk.chunk_index} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div className="text-xs text-indigo-500 font-medium mb-1">分块 #{chunk.chunk_index}</div>
+                        <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{chunk.text}</pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete KB Confirmation Modal */}
+        {deletingKb && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setDeletingKb(null)}>
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-red-50 rounded-full">
+                  <AlertCircle size={20} className="text-red-500" />
+                </div>
+                <h3 className="text-sm font-semibold text-gray-800">确认删除知识库</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-6">
+                删除知识库「{deletingKb.name}」将同时删除其中的所有文档和向量数据，此操作不可撤销。
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setDeletingKb(null)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmDeleteKb}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition"
+                >
+                  确认删除
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

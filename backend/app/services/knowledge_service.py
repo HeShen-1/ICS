@@ -170,3 +170,24 @@ def delete_document(db: Session, doc_id: int, user_id: int):
 
     db.delete(doc)
     db.commit()
+
+
+def get_document(db: Session, doc_id: int, user_id: int) -> Document:
+    """获取单个文档, 校验所有权"""
+    doc = (
+        db.query(Document)
+        .filter(Document.id == doc_id, Document.user_id == user_id)
+        .first()
+    )
+    if not doc:
+        raise ValueError("文档不存在")
+    return doc
+
+
+def get_document_content(db: Session, doc_id: int, user_id: int) -> str:
+    """读取文档文件内容"""
+    doc = get_document(db, doc_id, user_id)
+    if not doc.file_path or not os.path.exists(doc.file_path):
+        raise ValueError("文档文件不存在")
+    with open(doc.file_path, "r", encoding="utf-8") as f:
+        return f.read()
