@@ -24,16 +24,18 @@ class VectorStore:
         return self._client
 
     def _ensure_collection(self):
-        """确保 collection 存在"""
-        if self.client.has_collection(self.COLLECTION_NAME):
-            return
-        self.client.create_collection(
-            collection_name=self.COLLECTION_NAME,
-            dimension=self.dimension,
-            metric_type="COSINE",
-            auto_id=True,
-            enable_dynamic_field=True,
-        )
+        """确保 collection 存在并已加载"""
+        exists = self.client.has_collection(self.COLLECTION_NAME)
+        if not exists:
+            self.client.create_collection(
+                collection_name=self.COLLECTION_NAME,
+                dimension=self.dimension,
+                metric_type="COSINE",
+                auto_id=True,
+                enable_dynamic_field=True,
+            )
+        # pymilvus 3.0 需要显式 load 才能 search
+        self.client.load_collection(self.COLLECTION_NAME)
 
     def insert_chunks(self, chunks: List[Dict], embeddings: List[List[float]], kb_id: str | None = None) -> List[int]:
         """批量插入 chunk + embedding, 返回 Milvus 主键 ID 列表
@@ -62,7 +64,8 @@ class VectorStore:
             collection_name=self.COLLECTION_NAME,
             data=data,
         )
-        return result.get("ids", [])
+        ids = result.get("ids", [])
+        return list(ids)  # pymilvus 3.0 返回 RepeatedScalarContainer, 需转为 list
 
     def search(
         self,

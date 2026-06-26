@@ -35,7 +35,11 @@ async function request<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, body.detail || res.statusText);
+    // Pydantic 422 返回 detail 为数组 [{msg, loc, ...}], 提取可读消息
+    const detail = Array.isArray(body.detail)
+      ? body.detail.map((e: { msg: string }) => e.msg).join('; ')
+      : body.detail;
+    throw new ApiError(res.status, detail || res.statusText);
   }
 
   return res.json();

@@ -1,8 +1,7 @@
 import { request } from './client';
 
 interface RegisterParams {
-  phone?: string;
-  email?: string;
+  phone: string;
   password: string;
 }
 

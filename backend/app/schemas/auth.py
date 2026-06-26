@@ -4,22 +4,15 @@ import re
 
 
 class RegisterRequest(BaseModel):
-    phone: str | None = None
-    email: str | None = None
+    phone: str
     password: str
+    email: str | None = None  # 保留兼容，注册时忽略
 
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v):
-        if v and not re.match(r"^1[3-9]\d{9}$", v):
-            raise ValueError("手机号格式不正确")
-        return v
-
-    @field_validator("email")
-    @classmethod
-    def validate_email(cls, v):
-        if v and "@" not in v:
-            raise ValueError("邮箱格式不正确")
+        if not re.match(r"^1\d{10}$", v):
+            raise ValueError("手机号格式不正确（11 位数字，以 1 开头）")
         return v
 
     @field_validator("password")

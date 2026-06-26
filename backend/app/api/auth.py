@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/auth", tags=["认证"])
 @router.post("/register", response_model=AuthResponse)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
     try:
-        user = auth_service.register_user(db, req.phone, req.email, req.password)
+        user = auth_service.register_user(db, req.phone, req.password)
         token = auth_service.create_token(user.id)
         return AuthResponse(token=token, user_id=user.id, message="注册成功")
     except ValueError as e:

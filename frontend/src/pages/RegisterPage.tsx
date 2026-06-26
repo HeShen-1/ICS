@@ -4,7 +4,6 @@ import { useAuthStore } from '../stores/authStore';
 
 export function RegisterPage() {
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,8 +15,8 @@ export function RegisterPage() {
     e.preventDefault();
     setError('');
 
-    if (!phone && !email) {
-      setError('手机号和邮箱至少填写一个');
+    if (!phone) {
+      setError('请输入手机号');
       return;
     }
     if (password !== confirmPassword) {
@@ -31,7 +30,7 @@ export function RegisterPage() {
 
     setLoading(true);
     try {
-      await register(phone || undefined, email || undefined, password);
+      await register(phone, password);
       navigate('/chat');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '操作失败';
@@ -48,11 +47,7 @@ export function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">手机号</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="选填" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="选填" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" />
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" required />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>

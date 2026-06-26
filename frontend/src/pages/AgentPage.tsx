@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { Loader2, ArrowLeft, Code, Download, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { decomposeRequirement } from '../api/agent';
 import type { DecomposeTask, DecomposeResponse } from '../api/agent';
 
@@ -34,7 +35,51 @@ export function AgentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DecomposeResponse | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [showSource, setShowSource] = useState(false);
   const mermaidRef = useRef<HTMLDivElement>(null);
+  const sourceText = result ? buildMermaid(result.tasks) : '';
+
+  const handleExportPng = useCallback(async () => {
+    const svgEl = mermaidRef.current?.querySelector('svg');
+    if (!svgEl) return;
+
+    const svgRect = svgEl.getBoundingClientRect();
+    const viewBox = svgEl.getAttribute('viewBox')?.split(/\s+/).map(Number) || [];
+    const w = viewBox[2] || svgRect.width || 800;
+    const h = viewBox[3] || svgRect.height || 600;
+
+    const ratio = Math.min(4000 / w, 4000 / h, 4); // max 4000px, up to 4x scale
+    const canvasW = Math.round(w * ratio);
+    const canvasH = Math.round(h * ratio);
+
+    const svgData = new XMLSerializer().serializeToString(svgEl);
+    const img = new Image();
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasW;
+      canvas.height = canvasH;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      ctx.drawImage(img, 0, 0, canvasW, canvasH);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'task-flow.png';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, 'image/png');
+    };
+
+    img.src = url;
+  }, []);
 
   useEffect(() => {
     if (!result || !mermaidRef.current) return;
@@ -101,6 +146,10 @@ export function AgentPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="mb-8">
+          <Link to="/chat" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition mb-4">
+            <ArrowLeft size={16} />
+            返回主页
+          </Link>
           <h1 className="text-2xl font-bold text-gray-900">AI Agent 任务拆解</h1>
           <p className="mt-2 text-sm text-gray-500">
             输入业务需求，AI 将自动拆解为可执行的任务单元，分析受影响的微服务、任务依赖关系和并行执行策略
@@ -230,8 +279,24 @@ export function AgentPage() {
             </section>
 
             <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">任务依赖流程图</h2>
-              <div ref={mermaidRef} className="flex justify-center overflow-x-auto" />
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">任务依赖流程图</h2>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))} className="p-1.5 rounded hover:bg-gray-100 transition" title="缩小"><ZoomOut size={16} /></button>
+                  <span className="text-xs text-gray-500 w-10 text-center">{Math.round(zoom * 100)}%</span>
+                  <button onClick={() => setZoom((z) => Math.min(3, z + 0.25))} className="p-1.5 rounded hover:bg-gray-100 transition" title="放大"><ZoomIn size={16} /></button>
+                  <button onClick={() => setZoom(1)} className="p-1.5 rounded hover:bg-gray-100 transition" title="重置"><RotateCcw size={16} /></button>
+                  <span className="w-px h-5 bg-gray-300 mx-1" />
+                  <button onClick={() => setShowSource(!showSource)} className="p-1.5 rounded hover:bg-gray-100 transition" title="查看源码"><Code size={16} /></button>
+                  <button onClick={handleExportPng} className="p-1.5 rounded hover:bg-gray-100 transition" title="导出PNG"><Download size={16} /></button>
+                </div>
+              </div>
+              {showSource && (
+                <pre className="mb-4 p-4 bg-gray-900 text-green-400 text-xs rounded-lg overflow-auto max-h-60">{sourceText}</pre>
+              )}
+              <div className="flex justify-center overflow-auto" style={{ maxHeight: 600 }}>
+                <div ref={mermaidRef} style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.15s' }} />
+              </div>
             </section>
 
             <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

@@ -32,22 +32,13 @@ def verify_token(token: str) -> int | None:
         return None
 
 
-def register_user(db: Session, phone: str | None, email: str | None, password: str) -> User:
-    if not phone and not email:
-        raise ValueError("手机号和邮箱至少填一个")
-
-    if phone:
-        existing = db.query(User).filter(User.phone == phone).first()
-        if existing:
-            raise ValueError("该手机号已注册")
-    if email:
-        existing = db.query(User).filter(User.email == email).first()
-        if existing:
-            raise ValueError("该邮箱已注册")
+def register_user(db: Session, phone: str, password: str) -> User:
+    existing = db.query(User).filter(User.phone == phone).first()
+    if existing:
+        raise ValueError("该手机号已注册")
 
     user = User(
         phone=phone,
-        email=email,
         password_hash=hash_password(password),
     )
     db.add(user)

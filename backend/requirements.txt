@@ -9,7 +9,9 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.12
 sentence-transformers==3.1.1
-pymilvus==2.4.5
+pymilvus>=3.0
+milvus-lite>=3.0
+bcrypt==4.0.1
 openai==1.51.0
 llama-index-core==0.11.0
 llama-index-readers-file==0.2.0
