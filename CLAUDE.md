@@ -33,14 +33,14 @@ ICS/
 │   │   ├── config.py            # pydantic-settings (.env → Settings)
 │   │   ├── database.py          # SQLAlchemy engine/session/Base
 │   │   ├── dependencies.py      # Depends(get_db, get_current_user_id)
-│   │   ├── api/                 # 路由层 (auth, sessions, chat, knowledge, feedback, stats)
+│   │   ├── api/                 # 路由层 (auth, sessions, chat, knowledge, feedback, stats, agent)
 │   │   ├── services/            # 服务层 (auth_service, session_service, chat_service, knowledge_service, stats_service)
 │   │   ├── models/              # ORM 模型 (user, session, message, feedback, document)
 │   │   ├── schemas/             # Pydantic DTO
 │   │   └── rag/                 # RAG 核心引擎 (独立于 Web 层)
 │   │       ├── chunker.py       #   文档分块
 │   │       ├── embedder.py      #   BGE-M3 Embedding
-│   │       ├── vector_store.py  #   Milvus CRUD
+│   │       ├── vector_store.py  #   Milvus CRUD + query_by_source
 │   │       ├── retriever.py     #   检索服务
 │   │       ├── ingestion.py     #   文档入库管线
 │   │       ├── prompt.py        #   System Prompt + 拼接
@@ -53,7 +53,7 @@ ICS/
 │   │       └── prompt.py        #   路由 Prompt 模板
 │   ├── tests/                   # 后端测试 (98 个用例, 84% 覆盖率)
 │   ├── db/init.sql              # 建表语句
-│   ├── example_docs/            # 测试知识库文档 (7 篇: FAQ/产品介绍/退换货/用户协议/隐私政策/技术支持/版本更新)
+│   ├── example_docs/            # 测试知识库文档 (7 篇, 分类存入 3 个建议知识库: 产品知识库/售后与服务/法律条款)
 │   ├── data/                    # 运行时数据 (uploads/, milvus/) — gitignore
 │   ├── init_knowledge.py        # 一键初始化脚本
 │   ├── requirements.txt
@@ -63,7 +63,7 @@ ICS/
 │   ├── src/
 │   │   ├── api/                 # HTTP 请求 + SSE 消费
 │   │   ├── stores/              # Zustand (auth, session, chat)
-│   │   ├── pages/               # Login, Register, Chat, Knowledge, Stats, Agent
+│   │   ├── pages/               # Login, Register(仅手机号), Chat, Knowledge(上传路由/内容查看/分块查看/删除确认), Stats, Agent(缩放/源码查看/PNG导出)
 │   │   ├── components/          # chat/, sidebar/, knowledge/, ui/
 │   │   ├── hooks/               # useSSE, useAuth
 │   │   ├── lib/                 # sseParser, utils
@@ -194,6 +194,10 @@ curl -X POST http://localhost:8000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"phone":"13800000001","password":"123456"}'
 
+# 测试知识库 API (需先登录获取 TOKEN)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/knowledge/1/content  # 查看文档内容
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/knowledge/1/chunks   # 查看文档分块
+
 # 运行测试
 cd backend
 pytest tests/ -q                      # 98 个后端测试 (84% 覆盖率)
@@ -217,6 +221,7 @@ Embedder().embed(texts: list[str]) -> list[list[float]]
 VectorStore().insert_chunks(chunks, embeddings) -> list[int]
 VectorStore().search(vec, top_k, threshold, filter) -> list[dict]  # [{text, source, score}]
 VectorStore().delete_by_ids(ids)
+VectorStore().query_by_source(source: str) -> list[dict]  # 按文档名查询所有分块
 
 # retriever
 Retriever().search(query: str) -> list[dict]
@@ -267,7 +272,7 @@ generate_chat_stream(query, session_id, history) -> AsyncGenerator[str, None]
 ## 约束
 
 - ✅ DeepSeek API Key 由用户提供，`.env` 不入库
-- ✅ 初始知识库使用 `example_docs/` 下 7 篇测试文档
+- ✅ 初始知识库使用 `example_docs/` 下 7 篇测试文档，分类存入 3 个建议知识库（产品知识库/售后与服务/法律条款）
 - ✅ RAG 核心链路手动实现（chunking/embedding/search/prompt/stream），文档解析可复用 LlamaIndex
 - ✅ 流式输出使用 SSE (text/event-stream)
 - ✅ 前端不得直接调用 LLM API，所有 AI 调用走后端

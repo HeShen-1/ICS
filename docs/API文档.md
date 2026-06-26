@@ -42,16 +42,14 @@ POST /api/auth/register
 ```json
 {
   "phone": "13800138000",
-  "email": "user@example.com",
   "password": "123456"
 }
 ```
 
-> 说明：`phone` 和 `email` 至少填一个。两个都填也可以。
+> 说明：仅支持手机号注册，email 字段已移除。
 
 **校验规则**：
-- phone: 可选，11 位中国大陆手机号（正则 `/^1[3-9]\d{9}$/`）
-- email: 可选，合法邮箱格式
+- phone: 必填，11 位中国大陆手机号（正则 `/^1[3-9]\d{9}$/`）
 - password: 必填，最少 6 位
 
 **成功响应** (200)：
@@ -87,7 +85,7 @@ POST /api/auth/login
 }
 ```
 
-> `account` 可以是手机号或邮箱。
+> `account` 为手机号。
 
 **成功响应** (200)：
 
@@ -595,7 +593,64 @@ Authorization: Bearer <token>
 }
 ```
 
-### 6.4 创建知识库
+### 6.4 查看文档内容
+
+```
+GET /api/knowledge/{doc_id}/content
+Authorization: Bearer <token>
+```
+
+**成功响应** (200)：
+
+```json
+{
+  "id": 1,
+  "name": "产品介绍.txt",
+  "content": "这是文档的完整原始文本内容..."
+}
+```
+
+> 读取服务器上存储的文档原始文件内容。用于前端"查看文档内容"弹窗。
+
+**错误响应** (404)：
+
+```json
+{
+  "detail": "文档不存在"
+}
+```
+
+### 6.5 查看文档分块
+
+```
+GET /api/knowledge/{doc_id}/chunks
+Authorization: Bearer <token>
+```
+
+**成功响应** (200)：
+
+```json
+{
+  "id": 1,
+  "name": "产品介绍.txt",
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "text": "第一个分块的文本内容...",
+      "source": "产品介绍.txt"
+    },
+    {
+      "chunk_index": 1,
+      "text": "第二个分块的文本内容...",
+      "source": "产品介绍.txt"
+    }
+  ]
+}
+```
+
+> 通过 `vector_store.query_by_source()` 从 Milvus 中按文档名检索所有分块。用于前端"查看分块详情"弹窗。
+
+### 6.6 创建知识库
 
 ```
 POST /api/knowledge/bases
@@ -628,7 +683,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 6.5 知识库列表
+### 6.7 知识库列表
 
 ```
 GET /api/knowledge/bases
@@ -659,7 +714,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 6.6 更新知识库
+### 6.8 更新知识库
 
 ```
 PUT /api/knowledge/bases/{id}
@@ -687,7 +742,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 6.7 删除知识库
+### 6.9 删除知识库
 
 ```
 DELETE /api/knowledge/bases/{id}
@@ -808,6 +863,8 @@ GET /api/health
 | POST | `/api/agent/decompose` | ✅ | ❌ | AI Agent 任务拆解 |
 | POST | `/api/knowledge/upload` | ✅ | ❌ | 上传文档（支持 kb_id） |
 | GET | `/api/knowledge/list` | ✅ | ❌ | 文档列表 |
+| GET | `/api/knowledge/{id}/content` | ✅ | ❌ | 查看文档原始内容 |
+| GET | `/api/knowledge/{id}/chunks` | ✅ | ❌ | 查看文档分块信息 |
 | DELETE | `/api/knowledge/{id}` | ✅ | ❌ | 删除文档 |
 | POST | `/api/knowledge/bases` | ✅ | ❌ | 创建知识库 |
 | GET | `/api/knowledge/bases` | ✅ | ❌ | 知识库列表 |

@@ -53,7 +53,7 @@ backend/
 │   └── rag/                 # RAG 核心引擎（零 FastAPI 依赖）
 │       ├── chunker.py       #   文档分块（段落感知 + 滑动窗口）
 │       ├── embedder.py      #   BGE-M3 Embedding（懒加载单例）
-│       ├── vector_store.py  #   Milvus CRUD
+│       ├── vector_store.py  #   Milvus CRUD + query_by_source
 │       ├── retriever.py     #   语义检索
 │       ├── ingestion.py     #   文档入库管线
 │       ├── intent.py        #   意图识别（关键词 + LLM 备用）
@@ -68,7 +68,7 @@ backend/
 │   ├── test_rag/            #   RAG 模块测试
 │   └── test_services/       #   服务层测试
 ├── db/init.sql              # 建表语句
-├── example_docs/            # 测试知识库文档 (7 篇)
+├── example_docs/            # 测试知识库文档 (7 篇, 分类存入 3 个建议知识库)
 ├── data/                    # 运行时数据（uploads/, milvus/）
 ├── init_knowledge.py        # 一键初始化脚本
 ├── requirements.txt
@@ -157,6 +157,8 @@ API 文档：http://localhost:8000/docs (Swagger UI)
 | GET | `/api/chat/history/{session_id}` | 聊天历史 |
 | POST | `/api/knowledge/upload` | 上传文档 |
 | GET | `/api/knowledge/list` | 文档列表 |
+| GET | `/api/knowledge/{doc_id}/content` | 查看文档原始内容 |
+| GET | `/api/knowledge/{doc_id}/chunks` | 查看文档分块信息 |
 | DELETE | `/api/knowledge/{doc_id}` | 删除文档 |
 | POST | `/api/knowledge/bases` | 创建知识库 |
 | GET | `/api/knowledge/bases` | 知识库列表 |
