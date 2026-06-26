@@ -70,6 +70,7 @@ class TaskDecomposer:
             response = await self.llm.chat(
                 messages=messages,
                 temperature=0,
+                max_tokens=4096,
                 response_format={"type": "json_object"},
             )
         except RuntimeError:

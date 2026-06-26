@@ -43,14 +43,16 @@ class LLMClient:
 
         for attempt in range(self.max_retries):
             try:
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=temperature if temperature is not None else self.temperature,
-                    max_tokens=self.max_tokens,
-                    timeout=self.timeout,
+                params = {
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": temperature if temperature is not None else self.temperature,
+                    "timeout": self.timeout,
                     **kwargs,
-                )
+                }
+                if "max_tokens" not in params:
+                    params["max_tokens"] = self.max_tokens
+                response = await self.client.chat.completions.create(**params)
                 return response
 
             except Exception as e:
