@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { listSessions, createSession } from '../../api/sessions';
-import type { Session } from '../../api/sessions';
 import { useSessionStore } from '../../stores/sessionStore';
 import { MessageSquare, Plus, LogOut, Database, BarChart3, Bot } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';

@@ -69,7 +69,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             streamContent: '',
           }));
         },
-        onError: (code, message) => {
+        onError: (_code, message) => {
           set({ error: message, isStreaming: false });
         },
       }, selectedKbId);

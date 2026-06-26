@@ -20,7 +20,7 @@ describe('parseSSEChunk', () => {
       expect(result.events).toHaveLength(1);
       expect(result.events[0].event).toBe('sources');
       expect(result.events[0].data.references).toHaveLength(1);
-      expect(result.events[0].data.references[0]).toEqual({
+      expect((result.events[0].data as { references: unknown[] }).references[0]).toEqual({
         doc_name: 'test.pdf',
         snippet: '...',
         score: 0.9,

@@ -61,7 +61,7 @@ describe('chatStore', () => {
   describe('sendChat', () => {
     it('sets isStreaming to true when sending starts', async () => {
       const mockSend = vi.fn().mockImplementation(
-        (_sessionId: number, _content: string, callbacks: {
+        (_sessionId: number, _content: string, _callbacks: {
           onToken: (text: string) => void;
           onSources: (refs: unknown[]) => void;
           onFollowup: (suggestions: string[]) => void;
@@ -164,7 +164,7 @@ describe('chatStore', () => {
       useChatStore.setState({ error: '旧错误', streamContent: '旧内容' });
 
       vi.mocked(sendMessage).mockImplementation(
-        (_sessionId, _content, callbacks) => {
+        (_sessionId, _content, _callbacks) => {
           return Promise.resolve();
         },
       );
@@ -194,12 +194,12 @@ describe('chatStore', () => {
     it('replaces the entire messages array', () => {
       useChatStore.setState({
         messages: [
-          { id: 1, role: 'user', content: 'old', intent_tag: null, references: null, created_at: '' },
+          { id: 1, role: 'user' as const, content: 'old', intent_tag: null, references: null, created_at: '' },
         ],
       });
 
       const newMessages = [
-        { id: 2, role: 'assistant', content: 'new', intent_tag: null, references: null, created_at: '' },
+        { id: 2, role: 'assistant' as const, content: 'new', intent_tag: null, references: null, created_at: '' },
       ];
 
       getStore().setMessages(newMessages);
