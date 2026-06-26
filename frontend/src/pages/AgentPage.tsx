@@ -51,9 +51,32 @@ export function AgentPage() {
         return;
       }
 
-      const { svg } = await mermaidApi.render(
+      const { svg: rawSvg } = await mermaidApi.render(
         'export-' + Date.now(),
         exportText,
+      );
+
+      // 将 foreignObject 转为 SVG <text> 元素（Image 无法渲染 foreignObject）
+      const svg = rawSvg.replace(
+        /<foreignObject([^>]*)>[\s\S]*?<\/foreignObject>/g,
+        (match, attrs) => {
+          // 提取 foreignObject 内的纯文本
+          const text = match.replace(/<[^>]+>/g, '').trim();
+          if (!text) return '';
+          // 从 foreignObject 属性中提取坐标
+          const yMatch = attrs.match(/y=["']?([\d.]+)/);
+          const xMatch = attrs.match(/x=["']?([\d.]+)/);
+          const y = yMatch ? parseFloat(yMatch[1]) + 14 : 14; // +14 基线偏移
+          const x = xMatch ? parseFloat(xMatch[1]) + 4 : 4;
+          const lines = text.split(/\s*—\s*/); // 任务名 — 服务名
+          if (lines.length === 1) {
+            return `<text x="${x}" y="${y}" font-size="12" font-family="sans-serif" fill="#333">${lines[0]}</text>`;
+          }
+          return [
+            `<text x="${x}" y="${y}" font-size="12" font-family="sans-serif" font-weight="bold" fill="#333">${lines[0]}</text>`,
+            `<text x="${x}" y="${y + 16}" font-size="10" font-family="sans-serif" fill="#666"><tspan font-style="italic">${lines[1]}</tspan></text>`,
+          ].join('');
+        },
       );
 
       // 解析 SVG 尺寸
