@@ -98,7 +98,7 @@ schemas  database
 ### RAG 核心链路
 
 ```
-用户问题 → 校验(≤500字/≤100次/天) → BGE-M3 Embedding → Milvus 检索(top_k=5, threshold=0.65)
+用户问题 → 校验(≤500字/≤100次/天) → BGE-M3 Embedding → Milvus 检索(top_k=12, threshold=0.55)
   → 检索为空? → 兜底话术(不调LLM)
   → 检索有结果? → Prompt拼接(System+历史+知识片段) → DeepSeek stream → SSE逐字输出
   → 保存消息 + 引用来源 → MySQL
@@ -131,20 +131,24 @@ MYSQL_PASSWORD=
 MYSQL_DATABASE=ics_customer_service
 
 # === JWT ===
-JWT_SECRET_KEY=change-me-to-random
+JWT_SECRET_KEY=change-me-to-random    # 至少 32 字符，不含弱模式（change-me/secret/password/test 等）
 JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=1440
 
 # === 业务参数 ===
-TOP_K=5                    # Milvus 检索片段数
-SIMILARITY_THRESHOLD=0.65  # 相似度阈值
-MAX_QUESTION_LENGTH=500    # 问题长度上限
-DAILY_QUESTION_LIMIT=100   # 每日提问上限
-MAX_HISTORY_ROUNDS=5       # 多轮对话轮数
-MAX_CONTEXT_TOKENS=8000    # Token 预算
+TOP_K=12                    # Milvus 检索片段数
+SIMILARITY_THRESHOLD=0.55   # 相似度阈值
+MAX_QUESTION_LENGTH=500     # 问题长度上限
+DAILY_QUESTION_LIMIT=100    # 每日提问上限
+MAX_HISTORY_ROUNDS=5        # 多轮对话轮数
+MAX_CONTEXT_TOKENS=8000     # Token 预算
+FALLBACK_THRESHOLD=0.35     # 三层检索兜底阈值
+MAX_UPLOAD_SIZE=10485760    # 上传文件大小上限 (10MB)
+LLM_MAX_RETRIES=3           # LLM 非流式调用最大重试次数
 
 # === 文件 ===
 UPLOAD_DIR=./data/uploads
+SYSTEM_USER_PASSWORD=       # (可选) 初始化脚本系统用户密码，不设则随机生成
 ```
 
 ## 开发约定
