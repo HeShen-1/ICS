@@ -21,7 +21,6 @@ describe('chatStore', () => {
       references: [],
       error: null,
       followupSuggestions: [],
-      selectedKbId: null,
     });
     vi.clearAllMocks();
   });
@@ -35,7 +34,7 @@ describe('chatStore', () => {
       expect(s.references).toEqual([]);
       expect(s.error).toBeNull();
       expect(s.followupSuggestions).toEqual([]);
-      expect(s.selectedKbId).toBeNull();
+      expect(s.followupSuggestions).toEqual([]);
     });
   });
 
@@ -97,7 +96,7 @@ describe('chatStore', () => {
 
     it('passes callbacks and sessionId to sendMessage', async () => {
       vi.mocked(sendMessage).mockImplementation(
-        (_sessionId, _content, _callbacks) => Promise.resolve(),
+        (_sessionId, _content, callbacks) => Promise.resolve(),
       );
 
       await getStore().sendChat(1, 'test');
@@ -111,7 +110,6 @@ describe('chatStore', () => {
           onDone: expect.any(Function),
           onError: expect.any(Function),
         }),
-        null,
       );
     });
 
@@ -194,12 +192,12 @@ describe('chatStore', () => {
     it('replaces the entire messages array', () => {
       useChatStore.setState({
         messages: [
-          { id: 1, role: 'user' as const, content: 'old', intent_tag: null, references: null, created_at: '' },
+          { id: 1, role: 'user' as const, content: 'old', intent_tag: null, references: null, feedback_rating: null, created_at: '' },
         ],
       });
 
       const newMessages = [
-        { id: 2, role: 'assistant' as const, content: 'new', intent_tag: null, references: null, created_at: '' },
+        { id: 2, role: 'assistant' as const, content: 'new', intent_tag: null, references: null, feedback_rating: null, created_at: '' },
       ];
 
       getStore().setMessages(newMessages);
@@ -208,16 +206,5 @@ describe('chatStore', () => {
     });
   });
 
-  describe('setSelectedKbId', () => {
-    it('sets selectedKbId to a number', () => {
-      getStore().setSelectedKbId(5);
-      expect(getStore().selectedKbId).toBe(5);
-    });
-
-    it('sets selectedKbId to null', () => {
-      getStore().setSelectedKbId(10);
-      getStore().setSelectedKbId(null);
-      expect(getStore().selectedKbId).toBeNull();
-    });
-  });
+  // selectedKbId removed — auto-route handles KB selection
 });

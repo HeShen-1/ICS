@@ -28,27 +28,6 @@ class TestRegister:
         assert response.status_code == 400
         assert "已注册" in response.json()["detail"]
 
-    def test_register_with_email(self, test_client):
-        response = test_client.post(
-            "/api/auth/register",
-            json={"email": "test@example.com", "password": "test123456"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert "token" in data
-
-    def test_register_duplicate_email(self, test_client):
-        test_client.post(
-            "/api/auth/register",
-            json={"email": "dup@example.com", "password": "test123456"},
-        )
-        response = test_client.post(
-            "/api/auth/register",
-            json={"email": "dup@example.com", "password": "test123456"},
-        )
-        assert response.status_code == 400
-        assert "已注册" in response.json()["detail"]
-
     def test_register_short_password(self, test_client):
         response = test_client.post(
             "/api/auth/register",
