@@ -113,7 +113,7 @@ async def generate_chat_stream(
             chunks = retriever.vector_store.search(
                 query_embedding=retriever.embedder.embed_query(query),
                 top_k=settings.top_k,
-                threshold=0.35,  # 大幅降低, 兜底
+                threshold=settings.fallback_threshold,  # 大幅降低, 兜底
             )
             if chunks:
                 # 取多数派 kb_id 作为路由

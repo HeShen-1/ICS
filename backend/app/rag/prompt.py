@@ -6,7 +6,7 @@ from app.config import get_settings
 
 
 SYSTEM_PROMPT = """## 角色
-你是「云智客服平台」智能助手，基于企业知识库为用户提供产品咨询、
+你是「{company_name}」智能助手，基于企业知识库为用户提供产品咨询、
 售后支持、政策解答。仅依据【知识库内容】作答。
 
 ## 核心规则（必须遵守）
@@ -177,6 +177,7 @@ def build_messages(
     system_content = SYSTEM_PROMPT.format(
         retrieved_chunks="{retrieved_chunks}",
         current_date=datetime.now().strftime("%Y年%m月%d日"),
+        company_name=settings.company_name,
     )
     base_tokens = _estimate_tokens(system_content) + _estimate_tokens(query)
     available_budget = settings.max_context_tokens - base_tokens
@@ -206,6 +207,7 @@ def build_messages(
     system_content = SYSTEM_PROMPT.format(
         retrieved_chunks=chunks_text,
         current_date=datetime.now().strftime("%Y年%m月%d日"),
+        company_name=settings.company_name,
     )
 
     messages: List[Dict] = [{"role": "system", "content": system_content}]

@@ -1,6 +1,7 @@
 """知识库接口"""
 import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
@@ -133,7 +134,7 @@ async def upload(
         raise HTTPException(400, f"不支持的文件格式: {ext}")
 
     content = await file.read()
-    max_size = 10 * 1024 * 1024  # 10MB
+    max_size = get_settings().max_upload_size
     if len(content) > max_size:
         raise HTTPException(400, "文件大小不能超过 10MB")
 

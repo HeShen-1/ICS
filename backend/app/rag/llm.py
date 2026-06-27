@@ -19,7 +19,7 @@ class LLMClient:
         )
         self.model = settings.deepseek_model
         self.timeout = settings.llm_timeout
-        self.max_retries = 3
+        self.max_retries = settings.llm_max_retries
         self.temperature = settings.llm_temperature
         self.max_tokens = settings.llm_max_tokens
 

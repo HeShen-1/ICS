@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     top_k: int = 12
     similarity_threshold: float = 0.55
     max_history_rounds: int = 5
+    max_upload_size: int = 10 * 1024 * 1024  # 10MB
+    fallback_threshold: float = 0.35
+    llm_max_retries: int = 3
+    company_name: str = "云智客服平台"
 
     @field_validator("jwt_secret_key")
     @classmethod
