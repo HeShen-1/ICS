@@ -120,7 +120,7 @@ def upload_document(db: Session, user_id: int, file_content: bytes, filename: st
 
     try:
         ingestion = DocumentIngestion()
-        result = ingestion.ingest_file(file_path, kb_id=str(kb_id) if kb_id else None)
+        result = ingestion.ingest_file(file_path, kb_id=str(kb_id) if kb_id else None, source_name=filename)
 
         if result["success"]:
             doc.status = DocumentStatus.ready

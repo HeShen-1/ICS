@@ -1,8 +1,9 @@
-"""系统初始化：创建数据库表 + 创建默认知识库 + 批量入库示例文档"""
+"""系统初始化：创建数据库表 + 默认知识库 + 批量入库示例文档 + 增量迁移"""
 import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
+from sqlalchemy import text
 from app.database import engine, Base
 from app.models.user import User  # noqa: F401 — registers model with Base.metadata
 from app.models.session import Session  # noqa: F401
@@ -15,9 +16,16 @@ from app.rag.vector_store import VectorStore
 
 
 def init_database():
-    """创建所有表"""
+    """创建所有表 + 增量迁移"""
     Base.metadata.create_all(bind=engine)
-    print("✅ 数据库表创建完成")
+    # 增量迁移: 为已有数据库添加新列
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE sessions ADD COLUMN pinned BOOLEAN DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass  # 列已存在
+    print("✅ 数据库表创建/迁移完成")
 
 
 def _ensure_system_user(db):

@@ -59,3 +59,43 @@ def get_daily_trend(db: Session, days: int = 7) -> list[dict]:
         trend.append({"date": key, "count": result_map.get(key, 0)})
 
     return trend
+
+
+def get_feedback_sessions(db: Session) -> list[dict]:
+    """获取各会话的赞/踩统计"""
+    from app.models.session import Session as SessionModel
+
+    results = (
+        db.query(
+            SessionModel.id.label("session_id"),
+            SessionModel.title.label("title"),
+            func.sum(
+                func.if_(
+                    Feedback.rating == FeedbackRating.positive, 1, 0
+                )
+            ).label("positive_count"),
+            func.sum(
+                func.if_(
+                    Feedback.rating == FeedbackRating.negative, 1, 0
+                )
+            ).label("negative_count"),
+        )
+        .join(Message, Message.session_id == SessionModel.id)
+        .join(Feedback, Feedback.message_id == Message.id)
+        .group_by(SessionModel.id, SessionModel.title)
+        .having(
+            func.count(Feedback.id) > 0
+        )
+        .order_by(func.count(Feedback.id).desc())
+        .all()
+    )
+
+    return [
+        {
+            "session_id": r.session_id,
+            "title": r.title,
+            "positive_count": r.positive_count or 0,
+            "negative_count": r.negative_count or 0,
+        }
+        for r in results
+    ]

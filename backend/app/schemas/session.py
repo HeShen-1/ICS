@@ -11,6 +11,7 @@ class MessageOut(BaseModel):
     intent_tag: str | None = None
     references: list | None = None
     created_at: datetime
+    feedback_rating: str | None = None  # "positive" / "negative" / None
 
     class Config:
         from_attributes = True
@@ -20,6 +21,7 @@ class SessionOut(BaseModel):
     id: int
     title: str
     status: str
+    pinned: bool = False
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
@@ -34,6 +36,14 @@ class SessionDetailOut(SessionOut):
 
 class SessionCreate(BaseModel):
     title: str = "新会话"
+
+
+class SessionUpdate(BaseModel):
+    title: str
+
+
+class SessionPin(BaseModel):
+    pinned: bool
 
 
 class SessionListResponse(BaseModel):

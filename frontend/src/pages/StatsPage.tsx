@@ -1,20 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStatsOverview, getDailyTrend, type StatsOverview, type DailyTrendItem } from '../api/stats';
+import { getStatsOverview, getDailyTrend, getFeedbackSessions, type StatsOverview, type DailyTrendItem, type FeedbackSession } from '../api/stats';
 import { ArrowLeft, Users, MessageSquare, FileText, MessagesSquare, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 export function StatsPage() {
   const navigate = useNavigate();
   const [overview, setOverview] = useState<StatsOverview | null>(null);
   const [trend, setTrend] = useState<DailyTrendItem[]>([]);
+  const [feedbackSessions, setFeedbackSessions] = useState<FeedbackSession[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getStatsOverview(), getDailyTrend(7)])
-      .then(([ov, tr]) => {
+    Promise.all([getStatsOverview(), getDailyTrend(7), getFeedbackSessions()])
+      .then(([ov, tr, fs]) => {
         setOverview(ov);
         setTrend(tr);
+        setFeedbackSessions(fs);
         setError(null);
       })
       .catch(() => setError('加载统计数据失败'))
@@ -114,33 +116,96 @@ export function StatsPage() {
           )}
         </div>
 
-        {/* Daily Trend Bar Chart */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        {/* Daily Trend Line Chart */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-8">
           <h2 className="text-sm font-semibold text-gray-700 mb-4">近7日提问量</h2>
           {trend.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-8">暂无数据</p>
           ) : (
-            <div className="flex items-end justify-between gap-2" style={{ height: '200px' }}>
-              {trend.map((item) => {
-                const heightPercent = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
-                const dateLabel = item.date.slice(5); // MM-DD
-                return (
-                  <div key={item.date} className="flex flex-col items-center flex-1 h-full justify-end">
-                    <span className="text-xs text-gray-500 mb-1">{item.count}</span>
-                    <div
-                      className="w-full rounded-t-md transition-all"
-                      style={{
-                        height: `${Math.max(heightPercent, 2)}%`,
-                        backgroundColor: '#6366f1',
-                      }}
+            (() => {
+              const W = 560, H = 220, PAD_L = 36, PAD_R = 16, PAD_T = 30, PAD_B = 28;
+              const plotW = W - PAD_L - PAD_R;
+              const plotH = H - PAD_T - PAD_B;
+
+              const points = trend.map((d, i) => ({
+                x: PAD_L + (trend.length === 1 ? plotW / 2 : (i / (trend.length - 1)) * plotW),
+                y: PAD_T + plotH - (maxCount > 0 ? (d.count / maxCount) * plotH : 0),
+                count: d.count,
+                label: d.date.slice(5),
+              }));
+
+              const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+              const areaPath = linePath + ` L${points[points.length - 1].x},${PAD_T + plotH} L${points[0].x},${PAD_T + plotH} Z`;
+
+              return (
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: '240px' }}>
+                  <defs>
+                    <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity="0.2" />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity="0.02" />
+                    </linearGradient>
+                  </defs>
+                  {/* Y axis grid lines */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((r) => (
+                    <line key={r}
+                      x1={PAD_L} y1={PAD_T + plotH * (1 - r)}
+                      x2={PAD_L + plotW} y2={PAD_T + plotH * (1 - r)}
+                      stroke="#f0f0f0" strokeWidth="1"
                     />
-                    <span className="text-xs text-gray-400 mt-2">{dateLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
+                  ))}
+                  {/* Area fill */}
+                  <path d={areaPath} fill="url(#lineGrad)" />
+                  {/* Line */}
+                  <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* Data points */}
+                  {points.map((p, i) => (
+                    <g key={i}>
+                      <circle cx={p.x} cy={p.y} r="4" fill="#fff" stroke="#6366f1" strokeWidth="2" />
+                      <text x={p.x} y={p.y - 10} textAnchor="middle" fill="#6366f1" fontSize="11" fontWeight="600">
+                        {p.count}
+                      </text>
+                      <text x={p.x} y={H - 6} textAnchor="middle" fill="#9ca3af" fontSize="11">
+                        {p.label}
+                      </text>
+                    </g>
+                  ))}
+                  {/* Y axis labels */}
+                  <text x={PAD_L - 6} y={PAD_T + 4} textAnchor="end" fill="#9ca3af" fontSize="10">{maxCount}</text>
+                  <text x={PAD_L - 6} y={PAD_T + plotH + 2} textAnchor="end" fill="#9ca3af" fontSize="10">0</text>
+                </svg>
+              );
+            })()
           )}
         </div>
+
+        {/* Feedback Sessions Table */}
+        {feedbackSessions.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">会话评价明细</h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-xs text-gray-500">
+                  <th className="text-left py-2 font-medium">会话标题</th>
+                  <th className="text-center py-2 font-medium w-20">
+                    <ThumbsUp size={12} className="inline text-green-500" /> 赞
+                  </th>
+                  <th className="text-center py-2 font-medium w-20">
+                    <ThumbsDown size={12} className="inline text-red-500" /> 踩
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {feedbackSessions.map((fs) => (
+                  <tr key={fs.session_id} className="border-b border-gray-50">
+                    <td className="py-2 text-gray-700 truncate max-w-[200px]">{fs.title || `会话 #${fs.session_id}`}</td>
+                    <td className="text-center py-2 text-green-600">{fs.positive_count}</td>
+                    <td className="text-center py-2 text-red-500">{fs.negative_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

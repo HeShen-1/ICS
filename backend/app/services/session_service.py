@@ -61,6 +61,38 @@ def create_message(
     return msg
 
 
+def update_session(db: Session, session_id: int, user_id: int, title: str | None = None) -> SessionModel:
+    """重命名会话"""
+    session = get_session_detail(db, session_id, user_id)
+    if not session:
+        raise ValueError("会话不存在")
+    if title is not None:
+        session.title = title
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def pin_session(db: Session, session_id: int, user_id: int, pinned: bool) -> SessionModel:
+    """置顶/取消置顶"""
+    session = get_session_detail(db, session_id, user_id)
+    if not session:
+        raise ValueError("会话不存在")
+    session.pinned = pinned
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def delete_session(db: Session, session_id: int, user_id: int):
+    """删除会话"""
+    session = get_session_detail(db, session_id, user_id)
+    if not session:
+        raise ValueError("会话不存在")
+    db.delete(session)
+    db.commit()
+
+
 def get_session_messages(db: Session, session_id: int) -> List[MessageModel]:
     return (
         db.query(MessageModel)

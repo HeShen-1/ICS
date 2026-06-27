@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user_id
-from app.services.stats_service import get_overview, get_daily_trend
+from app.services.stats_service import get_overview, get_daily_trend, get_feedback_sessions
 
 router = APIRouter(prefix="/api/stats", tags=["统计"])
 
@@ -43,3 +43,10 @@ def stats_daily_trend(
 ):
     """管理后台 - 每日提问趋势"""
     return get_daily_trend(db, days)
+
+
+@router.get("/feedback_sessions")
+def feedback_sessions(db: Session = Depends(get_db)):
+    """管理后台 - 各会话评价统计"""
+    return get_feedback_sessions(db)
+

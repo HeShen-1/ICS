@@ -14,10 +14,21 @@ export interface DailyTrendItem {
   count: number;
 }
 
+export interface FeedbackSession {
+  session_id: number;
+  title: string;
+  positive_count: number;
+  negative_count: number;
+}
+
 export function getStatsOverview(): Promise<StatsOverview> {
   return request('/stats/overview');
 }
 
 export function getDailyTrend(days: number = 7): Promise<DailyTrendItem[]> {
   return request(`/stats/daily_trend?days=${days}`);
+}
+
+export function getFeedbackSessions(): Promise<FeedbackSession[]> {
+  return request('/stats/feedback_sessions');
 }

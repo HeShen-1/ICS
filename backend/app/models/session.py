@@ -1,7 +1,7 @@
 """会话模型"""
 import enum
 
-from sqlalchemy import Column, Integer, String, DateTime, Enum, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, ForeignKey, func
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -19,6 +19,7 @@ class Session(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, comment="所属用户ID")
     title = Column(String(100), default="新会话", comment="会话标题")
     status = Column(Enum(SessionStatus), default=SessionStatus.active, comment="会话状态")
+    pinned = Column(Boolean, default=False, comment="是否置顶")
     created_at = Column(DateTime, server_default=func.now(), comment="创建时间")
     updated_at = Column(
         DateTime,

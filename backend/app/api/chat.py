@@ -1,5 +1,6 @@
 """聊天 SSE 接口"""
 import json
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -11,6 +12,12 @@ from app.rag.stream import generate_chat_stream
 from app.rag.intent import classify_intent
 
 router = APIRouter(prefix="/api/chat", tags=["聊天"])
+
+
+def _strip_followup(text: str) -> str:
+    """移除 LLM 输出的 [追问]... 标记, 追问内容通过 followup SSE 事件单独处理"""
+    cleaned = re.sub(r"\n?\[追问\].*$", "", text, flags=re.DOTALL)
+    return cleaned.strip()
 
 
 @router.post("/{session_id}")
@@ -37,10 +44,16 @@ async def chat(
     # 4. 意图识别（先分类再保存消息）
     intent_tag = req.intent if req.intent else classify_intent(req.content)
 
-    # 5. 保存用户消息
+    # 5. 首条消息后自动更新会话标题 (取问题前10字)
+    if session.title == "新会话" and len(session.messages) == 0:
+        title = req.content.strip()[:10]
+        if title:
+            session_service.update_session(db, session_id, user_id, title=title)
+
+    # 6. 保存用户消息
     session_service.create_message(db, session_id, "user", req.content, intent_tag=intent_tag)
 
-    # 6. 获取历史消息
+    # 7. 获取历史消息
     messages = session_service.get_session_messages(db, session_id)
     history = [
         {"role": m.role.value, "content": m.content}
@@ -49,9 +62,6 @@ async def chat(
 
     # 7. 返回 SSE 流
     async def event_stream():
-        full_response = ""
-        references = []
-
         async for sse_str in generate_chat_stream(
             query=req.content,
             session_id=session_id,
@@ -60,28 +70,27 @@ async def chat(
             intent_tag=intent_tag,
             kb_id=str(req.kb_id) if req.kb_id else None,
         ):
-            # 解析 done 事件获取完整回答和引用
-            if 'event: done' in sse_str:
+            # 拦截 done 事件: 先入库获取真实 message_id, 注入后 yield
+            if "event: done" in sse_str:
                 try:
-                    data_str = sse_str.split('data: ')[1]
+                    data_str = sse_str.split("data: ")[1]
                     done_data = json.loads(data_str)
                     full_response = done_data.get("full_response", "")
                     references = done_data.get("references", [])
+
+                    if full_response:
+                        cleaned = _strip_followup(full_response)
+                        msg = session_service.create_message(
+                            db, session_id, "assistant", cleaned,
+                            intent_tag=intent_tag, references=references,
+                        )
+                        done_data["message_id"] = msg.id
+                        done_data["full_response"] = cleaned
+                        sse_str = f"event: done\ndata: {json.dumps(done_data, ensure_ascii=False)}\n\n"
                 except Exception:
                     pass
 
             yield sse_str
-
-        # 8. 保存 AI 回答到数据库
-        if full_response:
-            session_service.create_message(
-                db,
-                session_id,
-                "assistant",
-                full_response,
-                intent_tag=intent_tag,
-                references=references,
-            )
 
     return StreamingResponse(
         event_stream(),
