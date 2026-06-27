@@ -167,14 +167,13 @@ def build_messages(
         retrieved_chunks, key=lambda c: c.get("score", 0), reverse=True
     )
 
-    # 2. 去重：同一文档仅保留最高分片段
-    deduped_chunks = _dedup_chunks_by_source(sorted_chunks)
+    # 2. 先分类（关键规则 vs 普通），再各自去重，避免关键片段被高分普通片段覆盖
+    critical_candidates = [c for c in sorted_chunks if _is_critical(c.get("text", ""))]
+    normal_candidates = [c for c in sorted_chunks if not _is_critical(c.get("text", ""))]
+    critical_chunks = _dedup_chunks_by_source(critical_candidates)
+    normal_chunks = _dedup_chunks_by_source(normal_candidates)
 
-    # 3. 分类：关键规则 vs 普通
-    critical_chunks = [c for c in deduped_chunks if _is_critical(c.get("text", ""))]
-    normal_chunks = [c for c in deduped_chunks if not _is_critical(c.get("text", ""))]
-
-    # 4. 预估算 token 基数
+    # 3. 预估算 token 基数
     system_content = SYSTEM_PROMPT.format(
         retrieved_chunks="{retrieved_chunks}",
         current_date=datetime.now().strftime("%Y年%m月%d日"),
@@ -182,26 +181,24 @@ def build_messages(
     base_tokens = _estimate_tokens(system_content) + _estimate_tokens(query)
     available_budget = settings.max_context_tokens - base_tokens
 
-    # 5. 按 token 预算选取：关键规则优先，非关键在预算不足时先丢弃
+    # 4. 按 token 预算选取：关键规则优先，非关键在预算不足时先丢弃
+    #    使用运行计数器代替每轮 sum() — O(n) 代替 O(n²)
     selected_chunks: List[Dict] = []
+    current_tokens = 0
 
     for chunk in critical_chunks:
         chunk_tokens = _estimate_tokens(chunk.get("text", ""))
-        current_used = sum(
-            _estimate_tokens(c.get("text", "")) for c in selected_chunks
-        )
-        if current_used + chunk_tokens > available_budget:
+        if current_tokens + chunk_tokens > available_budget:
             break
         selected_chunks.append(chunk)
+        current_tokens += chunk_tokens
 
     for chunk in normal_chunks:
         chunk_tokens = _estimate_tokens(chunk.get("text", ""))
-        current_used = sum(
-            _estimate_tokens(c.get("text", "")) for c in selected_chunks
-        )
-        if current_used + chunk_tokens > available_budget:
+        if current_tokens + chunk_tokens > available_budget:
             break
         selected_chunks.append(chunk)
+        current_tokens += chunk_tokens
 
     # 6. 格式化（内部处理分层结构）
     chunks_text = format_retrieved_chunks(selected_chunks)
