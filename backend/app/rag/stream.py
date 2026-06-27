@@ -85,8 +85,9 @@ async def generate_chat_stream(
         intent_tag = classify_intent(query)
 
     try:
-        # Step 1: 自动路由到最匹配的知识库
-        kb_id = retriever.auto_route(query)
+        # Step 1: 自动路由到最匹配的知识库（仅在调用方未指定 kb_id 时）
+        if kb_id is None:
+            kb_id = retriever.auto_route(query)
         kb_name = _lookup_kb_name(kb_id)
 
         # Step 2: 检索 — 三层降级

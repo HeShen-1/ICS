@@ -31,7 +31,10 @@ def daily_usage(
 
 
 @router.get("/overview")
-def stats_overview(db: Session = Depends(get_db)):
+def stats_overview(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """管理后台 - 概览统计"""
     return get_overview(db)
 
@@ -39,6 +42,7 @@ def stats_overview(db: Session = Depends(get_db)):
 @router.get("/daily_trend")
 def stats_daily_trend(
     days: int = Query(default=7, ge=1, le=90, description="统计天数"),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """管理后台 - 每日提问趋势"""
@@ -46,7 +50,10 @@ def stats_daily_trend(
 
 
 @router.get("/feedback_sessions")
-def feedback_sessions(db: Session = Depends(get_db)):
+def feedback_sessions(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     """管理后台 - 各会话评价统计"""
     return get_feedback_sessions(db)
 

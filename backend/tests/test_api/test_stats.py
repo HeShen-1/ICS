@@ -12,8 +12,8 @@ class TestDailyCount:
 
 
 class TestOverview:
-    def test_overview_stats(self, test_client):
-        response = test_client.get("/api/stats/overview")
+    def test_overview_stats(self, auth_headers, test_client):
+        response = test_client.get("/api/stats/overview", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "total_users" in data
@@ -25,8 +25,8 @@ class TestOverview:
 
 
 class TestDailyTrend:
-    def test_daily_trend_default(self, test_client):
-        response = test_client.get("/api/stats/daily_trend")
+    def test_daily_trend_default(self, auth_headers, test_client):
+        response = test_client.get("/api/stats/daily_trend", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
