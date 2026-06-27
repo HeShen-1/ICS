@@ -36,9 +36,19 @@ frontend/.vite/
 .DS_Store
 Thumbs.db
 
+# Logs
+*.log
+*.log.*
+
+# Temp
+tmp/
+temp/
+
 # Project tooling (local only)
 .codegraph/
 .omc/
+.claude/
+.planning/
 
 # Exam reference (not for submission)
 AI开发工程师笔试题.docx
