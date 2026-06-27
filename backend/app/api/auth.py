@@ -1,5 +1,6 @@
 """认证接口"""
-# TODO: Add rate limiting middleware (e.g., slowapi) for production
+# TODO: Add rate limiting middleware (e.g., slowapi) for production.
+# Limiter import must come from app.rate_limit (not app.main) to avoid circular import.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db

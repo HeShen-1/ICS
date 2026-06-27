@@ -1,5 +1,8 @@
 """知识库接口"""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user_id
@@ -166,7 +169,8 @@ def get_doc_content(
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     except Exception as e:
-        raise HTTPException(500, detail=f"读取文档失败: {str(e)}")
+        logger.error("Failed to read document content for doc_id=%s: %s", doc_id, e, exc_info=True)
+        raise HTTPException(500, detail="读取文档失败，请稍后重试")
 
 
 @router.get("/{doc_id}/chunks", response_model=DocumentChunksOut)

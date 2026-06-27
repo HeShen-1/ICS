@@ -18,8 +18,16 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 6:
-            raise ValueError("密码至少 6 位")
+        if len(v) < 8:
+            raise ValueError("密码至少 8 位")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("密码必须包含至少一个大写字母")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("密码必须包含至少一个小写字母")
+        if not re.search(r"\d", v):
+            raise ValueError("密码必须包含至少一个数字")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=~`\[\];'/\\]", v):
+            raise ValueError("密码必须包含至少一个特殊字符")
         return v
 
 

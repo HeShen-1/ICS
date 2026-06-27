@@ -2,7 +2,7 @@
 import os
 import uuid
 from typing import List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.document import Document, DocumentStatus
 from app.models.knowledge_base import KnowledgeBase
 from app.config import get_settings
@@ -25,9 +25,10 @@ def create_kb(db: Session, user_id: int, name: str, description: str | None = No
 
 
 def get_kb_list(db: Session, user_id: int) -> List[KnowledgeBase]:
-    """获取用户的知识库列表"""
+    """获取用户的知识库列表（预加载文档关系，避免 N+1）"""
     return (
         db.query(KnowledgeBase)
+        .options(joinedload(KnowledgeBase.documents))
         .filter(KnowledgeBase.user_id == user_id)
         .order_by(KnowledgeBase.created_at.desc())
         .all()

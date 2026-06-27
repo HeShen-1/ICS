@@ -70,7 +70,7 @@ class TestGetSessionDetail:
         # User 1 creates session
         r1 = test_client.post(
             "/api/auth/register",
-            json={"phone": "13900000001", "password": "test123456"},
+            json={"phone": "13900000001", "password": "Test1234!@"},
         )
         token1 = r1.json()["token"]
         h1 = {"Authorization": f"Bearer {token1}"}
@@ -81,7 +81,7 @@ class TestGetSessionDetail:
         # User 2 registers and tries to access U1's session
         r2 = test_client.post(
             "/api/auth/register",
-            json={"phone": "13900000002", "password": "test123456"},
+            json={"phone": "13900000002", "password": "Test1234!@"},
         )
         token2 = r2.json()["token"]
         h2 = {"Authorization": f"Bearer {token2}"}

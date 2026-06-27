@@ -1,8 +1,11 @@
 """DeepSeek LLM 调用模块"""
 import asyncio
+import logging
 from typing import List, Dict, Any, AsyncGenerator
 from openai import AsyncOpenAI
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class LLMClient:
@@ -62,7 +65,8 @@ class LLMClient:
                     await asyncio.sleep(wait)
                 continue
 
-        raise RuntimeError(f"LLM 调用失败（已重试 {self.max_retries} 次）: {last_error}")
+        logger.error("LLM stream call failed after %d retries: %s", self.max_retries, last_error)
+        raise RuntimeError(f"LLM 流式调用失败（已重试 {self.max_retries} 次）")
 
     async def chat_stream(
         self,

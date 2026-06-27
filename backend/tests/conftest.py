@@ -122,7 +122,7 @@ def auth_headers(test_client):
     """Register a test user and return Authorization header dict."""
     response = test_client.post(
         "/api/auth/register",
-        json={"phone": "13800000001", "password": "test123456"},
+        json={"phone": "13800000001", "password": "Test1234!@"},
     )
     assert response.status_code == 200, f"Register failed: {response.text}"
     data = response.json()

@@ -88,6 +88,18 @@ def get_session(
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
 
+    # 批量查询所有消息的反馈，避免 N+1
+    message_ids = [m.id for m in session.messages]
+    feedback_map = {}
+    if message_ids:
+        from app.models.feedback import Feedback
+        feedbacks = (
+            db.query(Feedback)
+            .filter(Feedback.message_id.in_(message_ids))
+            .all()
+        )
+        feedback_map = {f.message_id: f.rating.value for f in feedbacks}
+
     return SessionDetailOut(
         id=session.id,
         title=session.title,
@@ -103,7 +115,7 @@ def get_session(
                 "intent_tag": m.intent_tag,
                 "references": m.references_json,
                 "created_at": m.created_at,
-                "feedback_rating": feedback_service.get_message_feedback(db, m.id),
+                "feedback_rating": feedback_map.get(m.id),
             }
             for m in session.messages
         ],

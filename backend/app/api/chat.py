@@ -1,5 +1,6 @@
 """聊天 SSE 接口"""
 import json
+import logging
 import re
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -8,6 +9,8 @@ from app.database import get_db
 from app.dependencies import get_current_user_id
 from app.schemas.chat import ChatRequest
 from app.services import session_service, chat_service
+
+logger = logging.getLogger(__name__)
 from app.rag.stream import generate_chat_stream
 from app.rag.intent import classify_intent
 
@@ -88,6 +91,7 @@ async def chat(
                         done_data["full_response"] = cleaned
                         sse_str = f"event: done\ndata: {json.dumps(done_data, ensure_ascii=False)}\n\n"
                 except Exception:
+                    logger.error("Failed to save assistant message for session %s", session_id, exc_info=True)
                     pass
 
             yield sse_str
