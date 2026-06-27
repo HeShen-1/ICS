@@ -23,6 +23,7 @@ def check_and_increment_daily_limit(db: Session, user_id: int) -> bool:
 
     if record:
         if record.count >= settings.daily_question_limit:
+            db.rollback()  # Release FOR UPDATE lock before returning
             return False
         record.count += 1
     else:

@@ -34,6 +34,16 @@ class VectorStore:
                 auto_id=True,
                 enable_dynamic_field=True,
             )
+            # Create HNSW index for scalable vector search
+            self.client.create_index(
+                collection_name=self.COLLECTION_NAME,
+                field_name="vector",
+                index_params={
+                    "index_type": "HNSW",
+                    "metric_type": "COSINE",
+                    "params": {"M": 16, "efConstruction": 200},
+                },
+            )
         # pymilvus 3.0 需要显式 load 才能 search
         self.client.load_collection(self.COLLECTION_NAME)
 
@@ -128,9 +138,12 @@ class VectorStore:
         Returns:
             [{text, source, chunk_index, id}, ...]
         """
-        filter_parts = [f'source == "{source}"']
+        # Escape double-quote characters in filter values to prevent filter injection
+        esc_source = source.replace('"', '\\"')
+        filter_parts = [f'source == "{esc_source}"']
         if kb_id:
-            filter_parts.append(f'kb_id == "{kb_id}"')
+            esc_kb_id = kb_id.replace('"', '\\"')
+            filter_parts.append(f'kb_id == "{esc_kb_id}"')
         results = self.client.query(
             collection_name=self.COLLECTION_NAME,
             filter=" && ".join(filter_parts),

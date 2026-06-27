@@ -5,6 +5,8 @@ from app.config import get_settings
 
 # 模块级模型缓存：所有 Embedder 实例共享同一个模型
 _model: SentenceTransformer | None = None
+# 查询缓存：避免重复嵌入相同文本
+_query_cache: dict[str, list[float]] = {}
 
 
 class Embedder:
@@ -43,8 +45,16 @@ class Embedder:
             raise RuntimeError(f"Embedding 模型编码失败: {e}") from e
 
     def embed_query(self, query: str) -> List[float]:
-        """单条查询 embedding"""
-        return self.embed([query])[0]
+        """单条查询 embedding（带缓存）"""
+        global _query_cache
+        if query in _query_cache:
+            return _query_cache[query]
+        result = self.embed([query])[0]
+        # Simple eviction: clear cache if it grows too large
+        if len(_query_cache) > 1024:
+            _query_cache.clear()
+        _query_cache[query] = result
+        return result
 
     @property
     def dimension(self) -> int:
