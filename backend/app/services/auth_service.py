@@ -19,16 +19,28 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_token(user_id: int) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": str(user_id), "exp": expire}
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=settings.jwt_expire_minutes)
+    payload = {
+        "sub": str(user_id),
+        "iat": int(now.timestamp()),
+        "iss": "ics-api",
+        "aud": "ics-frontend",
+        "exp": expire,
+    }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
 def verify_token(token: str) -> int | None:
     try:
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            audience="ics-frontend",
+        )
         return int(payload["sub"])
-    except Exception:
+    except (jwt.ExpiredSignatureError, jwt.JWTError, KeyError, ValueError):
         return None
 
 
