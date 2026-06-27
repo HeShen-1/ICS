@@ -8,6 +8,20 @@ def submit_feedback(
     rating: str,
     comment: str | None = None,
 ) -> Feedback:
+    """提交或更新反馈（同一消息多次提交视为更新）"""
+    existing = (
+        db.query(Feedback)
+        .filter(Feedback.message_id == message_id)
+        .first()
+    )
+    if existing:
+        existing.rating = FeedbackRating(rating)
+        if comment is not None:
+            existing.comment = comment
+        db.commit()
+        db.refresh(existing)
+        return existing
+
     fb = Feedback(
         message_id=message_id,
         rating=FeedbackRating(rating),
