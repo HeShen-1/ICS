@@ -15,13 +15,14 @@ class DocumentIngestion:
         self.embedder = Embedder()
         self.vector_store = VectorStore()
 
-    def ingest_file(self, file_path: str, kb_id: str | None = None) -> Dict:
+    def ingest_file(self, file_path: str, kb_id: str | None = None, source_name: str | None = None) -> Dict:
         """
         处理单个文件并入库
 
         Args:
             file_path: 文件路径
             kb_id: 可选的知识库 ID
+            source_name: 可选的自定义 source 名称, 不传则用 file_path 的 basename
 
         Returns:
             {"success": True/False, "chunk_count": int, "milvus_ids": [...], "error": str|None}
@@ -33,7 +34,7 @@ class DocumentIngestion:
                 return {"success": False, "chunk_count": 0, "milvus_ids": [], "error": "文件内容为空"}
 
             # 2. 分块
-            doc_name = os.path.basename(file_path)
+            doc_name = source_name or os.path.basename(file_path)
             chunks = self.chunker.chunk(text, metadata={"source": doc_name})
             if not chunks:
                 return {"success": False, "chunk_count": 0, "milvus_ids": [], "error": "分块结果为空"}

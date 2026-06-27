@@ -183,7 +183,8 @@ def get_doc_chunks(
 
     from app.rag.vector_store import VectorStore
     vs = VectorStore()
-    chunks = vs.query_by_source(doc.name)
+    kb_id_str = str(doc.kb_id) if doc.kb_id else None
+    chunks = vs.query_by_source(doc.name, kb_id=kb_id_str)
 
     return DocumentChunksOut(
         id=doc.id,

@@ -1,89 +1,309 @@
 """文档分块模块
-策略: 按段落分块 + 滑动窗口重叠，保持语义完整性
+
+策略 (方案 C — 混合分块):
+1. 解析 Markdown 标题结构 (##/###) → 构建标题路径
+2. 每个 section 作为候选块:
+   - ≤ max_size → 直接作为一个 chunk
+   - > max_size → 在段落边界 (\\n\\n > \\n > 。！？) 切分
+3. 每个 chunk 携带完整标题路径: "[父标题 > 子标题]"
+4. 代码块 (```...```) 完整性保护, 不切断
+5. chunk_size 按文档类型自适应:
+   - FAQ / 问答: 800
+   - 政策 / 协议 / 条款: 1000
+   - 技术 / 说明 / 介绍: 1200
+   - 默认: 1000
 """
 from typing import List, Dict
 import re
 
 
 class TextChunker:
-    """文本分块器"""
+    """文本分块器 — Markdown 语义感知"""
 
-    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50):
-        if chunk_overlap > chunk_size // 2:
-            raise ValueError(
-                f"chunk_overlap ({chunk_overlap}) must be at most half "
-                f"of chunk_size ({chunk_size}), got {chunk_overlap} > {chunk_size // 2}"
-            )
+    # 文档类型 → 推荐 chunk_size
+    _TYPE_SIZES = {
+        "faq": 800,
+        "policy": 1000,
+        "tech": 1200,
+        "default": 1000,
+    }
+
+    def __init__(self, chunk_size: int | None = None, chunk_overlap: int | None = None):
+        """
+        Args:
+            chunk_size: 分块最大字符数。None 时按文档类型自动选择
+            chunk_overlap: 重叠字符数。None 时自动取 chunk_size 的 15%
+        """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        # 两个都显式设置时提前校验
+        if chunk_size is not None and chunk_overlap is not None:
+            if chunk_overlap > chunk_size // 2:
+                raise ValueError(
+                    f"chunk_overlap ({chunk_overlap}) must be at most half "
+                    f"of chunk_size ({chunk_size}), got {chunk_overlap} > {chunk_size // 2}"
+                )
 
-    def chunk(self, text: str, metadata: Dict[str, str] = None) -> List[Dict]:
+    # ── 公共入口 ──────────────────────────────────────
+
+    def chunk(self, text: str, metadata: Dict[str, str] | None = None) -> List[Dict]:
         """
         将文本切分为带 metadata 的 chunk 列表
 
         Args:
             text: 原始文本
-            metadata: 附加信息（如文档名）
+            metadata: 附加信息（至少含 source 字段用于类型检测）
 
         Returns:
-            [{text: "片段内容", metadata: {source: "文档名", chunk_index: 0}}, ...]
+            [{text: "片段内容", metadata: {source, chunk_index, char_count, header_path}}, ...]
         """
         if not text or not text.strip():
             return []
 
         meta = metadata or {}
+        source = meta.get("source", "")
 
-        # Step 1: 按段落分割
-        paragraphs = self._split_paragraphs(text)
+        # 确定参数
+        chunk_size = self.chunk_size if self.chunk_size is not None else self._detect_size(source)
+        overlap = (
+            self.chunk_overlap
+            if self.chunk_overlap is not None
+            else int(chunk_size * 0.15)
+        )
 
-        # Step 2: 合并短段落 + 切分长段落
-        chunks = self._merge_and_split(paragraphs)
+        if overlap > chunk_size // 2:
+            raise ValueError(
+                f"chunk_overlap ({overlap}) must be at most half "
+                f"of chunk_size ({chunk_size}), got {overlap} > {chunk_size // 2}"
+            )
 
-        # Step 3: 添加 metadata
+        # 1. 解析 Markdown 结构
+        sections = self._parse_sections(text)
+
+        # 2. 每 section 生成 chunk — 返回 (header_path, text) 元组
+        raw_chunks: List[tuple] = []  # [(header_path, text), ...]
+        for header_path, section_text in sections:
+            if not section_text.strip():
+                continue
+            if len(section_text) <= chunk_size:
+                raw_chunks.append((header_path, self._format_chunk(header_path, section_text)))
+            else:
+                for sub_text in self._split_section(header_path, section_text, chunk_size):
+                    raw_chunks.append((header_path, sub_text))
+
+        # 3. 轻量重叠：仅同 section 子块间共享1句上下文
+        final_chunks = self._apply_overlap(raw_chunks, overlap)
+
+        # 4. 组装输出
         return [
             {
-                "text": chunk.strip(),
-                "metadata": {
-                    **meta,
-                    "chunk_index": i,
-                    "char_count": len(chunk.strip()),
-                },
+                "text": c.strip(),
+                "metadata": {**meta, "chunk_index": i, "char_count": len(c.strip())},
             }
-            for i, chunk in enumerate(chunks)
-            if chunk.strip()
+            for i, c in enumerate(final_chunks)
+            if c.strip()
         ]
 
-    def _split_paragraphs(self, text: str) -> List[str]:
-        """按双换行/单换行/标题分割段落"""
-        # 先按双换行分
+    # ── 文档类型检测 ─────────────────────────────────
+
+    def _detect_size(self, filename: str) -> int:
+        """根据文件名关键词推断文档类型"""
+        name_lower = filename.lower()
+        if any(k in name_lower for k in ("faq", "常见问题", "问答", "q&a")):
+            return self._TYPE_SIZES["faq"]
+        if any(k in name_lower for k in ("政策", "协议", "条款", "隐私", "法律", "policy", "agreement")):
+            return self._TYPE_SIZES["policy"]
+        if any(
+            k in name_lower
+            for k in ("技术", "说明", "介绍", "指南", "开发", "api", "tech", "guide")
+        ):
+            return self._TYPE_SIZES["tech"]
+        return self._TYPE_SIZES["default"]
+
+    # ── Markdown 结构解析 ─────────────────────────────
+
+    @staticmethod
+    def _parse_sections(text: str) -> List[tuple]:
+        """
+        按 ## / ### / #### 标题拆分为 sections。
+        返回 [(header_path, content), ...]
+        header_path 示例: "常见问题 > 账号相关 > 如何注册"
+        """
+        # 匹配 ATX 标题 (# 开头)
+        heading_re = re.compile(r"^(#{1,4})\s+(.+)$", re.MULTILINE)
+
+        # 找到所有标题位置
+        headings: List[tuple] = []  # (start, end, level, title)
+        for m in heading_re.finditer(text):
+            level = len(m.group(1))
+            title = m.group(2).strip()
+            headings.append((m.start(), m.end(), level, title))
+
+        if not headings:
+            # 无标题 — 整篇作为一个 section
+            return [("", text)]
+
+        sections = []
+
+        # 标题前的导言（H1 之前或第一个 ## 之前）
+        if headings[0][0] > 0:
+            pre = text[: headings[0][0]].strip()
+            if pre:
+                sections.append(("", pre))
+
+        # 标题栈: [H1, H2, H3, H4]
+        stack = [""] * 4
+
+        for i, (start, end, level, title) in enumerate(headings):
+            idx = level - 1  # 0-based
+            stack[idx] = title
+            # 清除更低层级
+            for j in range(idx + 1, 4):
+                stack[j] = ""
+
+            # 标题路径
+            path_parts = [h for h in stack if h]
+            header_path = " > ".join(path_parts)
+
+            # 内容区间: 当前标题之后 → 下一标题之前 (或文末)
+            content_start = end
+            content_end = headings[i + 1][0] if i + 1 < len(headings) else len(text)
+            content = text[content_start:content_end].strip()
+
+            if content:
+                sections.append((header_path, content))
+
+        return sections
+
+    # ── 长 section 段落级切分 ──────────────────────────
+
+    def _split_section(
+        self, header_path: str, text: str, max_size: int
+    ) -> List[str]:
+        """对超过 max_size 的 section 在段落边界切分, 不重叠"""
+        chunks: List[str] = []
+        remaining = text
+
+        while remaining.strip():
+            if len(remaining) <= max_size:
+                chunks.append(self._format_chunk(header_path, remaining))
+                break
+
+            split_at = self._find_split_point(remaining, max_size)
+
+            chunk_text = remaining[:split_at].strip()
+            if chunk_text:
+                chunks.append(self._format_chunk(header_path, chunk_text))
+
+            remaining = remaining[split_at:]
+
+        return chunks
+
+    def _find_split_point(self, text: str, max_size: int) -> int:
+        """
+        在 [max_size*0.5, max_size] 区间找最佳段落边界。
+        优先级: \\n\\n > \\n > 。！？； > max_size 硬切
+        """
+        window = text[:max_size]
+        min_bound = max_size // 2  # 不切得太碎
+
+        # 跳过代码块内部 — 找到最近的未闭合 ```
+        code_fence = self._find_fence_boundary(window, min_bound)
+        if code_fence is not None:
+            return code_fence
+
+        # 1. 双换行（段落边界）
+        pos = window.rfind("\n\n", min_bound)
+        if pos > 0:
+            return pos + 2
+
+        # 2. 单换行
+        pos = window.rfind("\n", min_bound)
+        if pos > 0:
+            return pos + 1
+
+        # 3. 句子结束标点
+        for sep in ("。", "！", "？", "；"):
+            pos = window.rfind(sep, min_bound)
+            if pos > 0:
+                return pos + 1
+
+        # 4. 硬切
+        return max_size
+
+    @staticmethod
+    def _find_fence_boundary(window: str, min_bound: int) -> int | None:
+        """
+        如果 min_bound..max_size 区间内存在未闭合的 ```,
+        返回代码块之前的切分点; 否则返回 None
+        """
+        # 统计 window 中 ``` 出现次数
+        fences = [m.start() for m in re.finditer(r"^```", window, re.MULTILINE)]
+        if len(fences) % 2 == 1:
+            # 奇数个 ``` — 有一个未闭合, 切在最后一个 ``` 之前
+            last_fence = fences[-1]
+            if last_fence > min_bound:
+                return last_fence
+        return None
+
+    # ── chunk 格式化 ──────────────────────────────────
+
+    @staticmethod
+    def _format_chunk(header_path: str, text: str) -> str:
+        """为 chunk 添加标题上下文前缀"""
+        if header_path:
+            return f"[{header_path}]\n{text.strip()}"
+        return text.strip()
+
+    # ── 重叠处理 ──────────────────────────────────────
+
+    @staticmethod
+    def _apply_overlap(chunks: List[tuple], overlap: int) -> List[str]:
+        """仅在同一个 section 的连续子块间加 1 句上下文衔接, 不同 section 间不重叠"""
+        if not chunks:
+            return []
+
+        result = [chunks[0][1]]  # 第一个 chunk 的 text
+        for i in range(1, len(chunks)):
+            prev_h, prev_text = chunks[i - 1]
+            curr_h, curr_text = chunks[i]
+
+            # 不同 section → 不加重叠
+            if prev_h != curr_h or overlap <= 0 or len(prev_text) <= overlap:
+                result.append(curr_text)
+                continue
+
+            # 取上一块末尾 ~overlap 字符, 找到最后一个完整句子
+            tail = prev_text[-overlap:]
+            best = 0
+            for sep in ("\n\n", "\n", "。", "！", "？"):
+                pos = tail.rfind(sep)
+                if pos > best:
+                    best = pos + len(sep)
+            context = tail[best:].strip() if best > 0 else ""
+
+            if context:
+                result.append(f"(上文续)\n{context}\n---\n{curr_text}")
+            else:
+                result.append(curr_text)
+
+        return result
+
+    # ── 旧 API 兼容（供测试） ──────────────────────────
+
+    @staticmethod
+    def _split_paragraphs(text: str) -> List[str]:
+        """按段落分割，保留旧接口"""
+        if not text or not text.strip():
+            return []
         parts = re.split(r"\n\s*\n", text)
-        # 每个部分再按单换行分（保留较短的段落）
         result = []
         for part in parts:
             lines = part.split("\n")
             result.extend(line.strip() for line in lines if line.strip())
         return result
 
-    def _merge_and_split(self, paragraphs: List[str]) -> List[str]:
-        """合并短段落，切分长段落"""
-        chunks = []
-        current = ""
-
-        for para in paragraphs:
-            if len(current) + len(para) + 1 <= self.chunk_size:
-                current = (current + "\n" + para).strip() if current else para
-            else:
-                if current:
-                    chunks.append(current)
-                # 长段落进一步切分
-                if len(para) > self.chunk_size:
-                    for i in range(0, len(para), self.chunk_size - self.chunk_overlap):
-                        chunks.append(para[i : i + self.chunk_size])
-                    current = ""  # 长段落切分后重置 current
-                else:
-                    current = para
-
-        if current:
-            chunks.append(current)
-
-        return chunks
+    @staticmethod
+    def _merge_and_split(paragraphs: List[str]) -> List[str]:
+        """旧接口兼容 — 已不参与核心逻辑"""
+        return paragraphs

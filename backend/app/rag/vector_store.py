@@ -75,13 +75,16 @@ class VectorStore:
         filter_expr: Optional[str] = None,
     ) -> List[Dict]:
         """向量相似度检索, 返回 [{text, source, chunk_index, score}, ...]"""
-        results = self.client.search(
-            collection_name=self.COLLECTION_NAME,
-            data=[query_embedding],
-            limit=top_k,
-            output_fields=["text", "source", "chunk_index", "kb_id"],
-            filter=filter_expr,
-        )
+        try:
+            results = self.client.search(
+                collection_name=self.COLLECTION_NAME,
+                data=[query_embedding],
+                limit=top_k,
+                output_fields=["text", "source", "chunk_index", "kb_id"],
+                filter=filter_expr,
+            )
+        except Exception as e:
+            raise RuntimeError(f"Milvus 向量检索失败: {e}") from e
 
         hits = []
         for hit in results[0]:
@@ -114,19 +117,23 @@ class VectorStore:
         )
         return result[0].get("count(*)", 0) if result else 0
 
-    def query_by_source(self, source: str, limit: int = 1000) -> List[Dict]:
+    def query_by_source(self, source: str, kb_id: str | None = None, limit: int = 1000) -> List[Dict]:
         """按文档来源查询所有分块
 
         Args:
             source: 文档名称 (Milvus source 字段)
+            kb_id: 可选的知识库 ID, 用于隔离不同知识库的同名文档
             limit: 最大返回数量
 
         Returns:
             [{text, source, chunk_index, id}, ...]
         """
+        filter_parts = [f'source == "{source}"']
+        if kb_id:
+            filter_parts.append(f'kb_id == "{kb_id}"')
         results = self.client.query(
             collection_name=self.COLLECTION_NAME,
-            filter=f'source == "{source}"',
+            filter=" && ".join(filter_parts),
             output_fields=["text", "source", "chunk_index"],
             limit=limit,
         )
