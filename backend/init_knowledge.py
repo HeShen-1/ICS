@@ -1,6 +1,7 @@
 """系统初始化：创建数据库表 + 默认知识库 + 批量入库示例文档 + 增量迁移"""
 import sys
 import os
+import secrets
 sys.path.insert(0, os.path.dirname(__file__))
 
 from sqlalchemy import text
@@ -35,10 +36,15 @@ def _ensure_system_user(db):
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     user = db.query(User).filter(User.phone == "00000000000").first()
     if not user:
+        system_password = os.getenv("SYSTEM_USER_PASSWORD")
+        if not system_password:
+            system_password = secrets.token_urlsafe(12)
+            print(f"[SECURITY] SYSTEM_USER_PASSWORD not set. Generated random password: {system_password}")
+            print("[SECURITY] Save this password if system user login is needed (phone: 00000000000).")
         user = User(
             phone="00000000000",
             email="system@ics.local",
-            password_hash=pwd_context.hash("system"),
+            password_hash=pwd_context.hash(system_password),
         )
         db.add(user)
         db.commit()

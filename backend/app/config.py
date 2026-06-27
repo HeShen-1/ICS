@@ -50,8 +50,18 @@ class Settings(BaseSettings):
     @field_validator("jwt_secret_key")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
-        if v == "change-me":
-            raise ValueError("JWT_SECRET_KEY must be set to a real secret in .env")
+        if len(v) < 32:
+            raise ValueError(
+                "JWT_SECRET_KEY must be at least 32 characters. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            )
+        v_lower = v.lower()
+        weak_patterns = ["change-me", "changeme", "secret", "password", "123456", "test"]
+        if any(pattern in v_lower for pattern in weak_patterns):
+            raise ValueError(
+                "JWT_SECRET_KEY contains a weak/guessable pattern. "
+                "Generate a strong random key with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            )
         return v
 
     @property

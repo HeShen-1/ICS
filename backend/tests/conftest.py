@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 # Set env var BEFORE any app imports, since app.database calls get_settings()
 # at module level which validates jwt_secret_key != "change-me"
-os.environ.setdefault("JWT_SECRET_KEY", "pytest-test-secret-key")
+os.environ.setdefault("JWT_SECRET_KEY", "jwt-ci-dev-key-32chars-abcdefghX")
 
 TEST_DB_URL = "sqlite:///:memory:"
 
@@ -57,7 +57,7 @@ def _test_settings():
         mysql_password="test",
         mysql_database="test",
         deepseek_api_key="test-key",
-        jwt_secret_key="test-secret-key-not-change-me",
+        jwt_secret_key="jwt-ci-dev-key-32chars-abcdefghX",
         jwt_algorithm="HS256",
         jwt_expire_minutes=1440,
         upload_dir="/tmp/test_uploads",

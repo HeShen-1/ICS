@@ -14,7 +14,7 @@ def _test_settings():
         mysql_password="test",
         mysql_database="test",
         deepseek_api_key="test-key",
-        jwt_secret_key="test-secret-key-not-change-me",
+        jwt_secret_key="jwt-ci-dev-key-32chars-abcdefghX",
         jwt_algorithm="HS256",
         jwt_expire_minutes=1440,
         upload_dir="/tmp/test_uploads",
