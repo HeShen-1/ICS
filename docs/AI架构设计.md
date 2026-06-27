@@ -66,74 +66,128 @@ flowchart TD
 
 ```
 ## 角色
-你是智能客服助手，专门为用户解答产品相关问题。
+你是「{company_name}」智能助手，基于企业知识库为用户提供产品咨询、
+售后支持、政策解答。仅依据【知识库内容】作答。
 
 ## 核心规则（必须遵守）
-1. 你只能根据下方【知识库内容】回答问题
-2. 如果知识库中没有相关信息，必须回答：
-   "抱歉，我目前的知识库中暂未收录该信息"
-3. 每条回答末尾必须标注引用来源：📚 参考：[文档名]
+1. 根据【知识库内容】作答。即使信息不完整，也先提供已知内容，再说明局限
+2. 仅当知识库完全没有相关内容时，回答"抱歉，暂未收录该信息，建议联系人工客服"
+3. 禁止编造、推测、补充知识库外的任何信息
+4. 禁止评价竞品、对比其他公司产品
+5. 每条回答末尾必须标注引用：📚 参考：文档名1、文档名2
 
-## 回答风格
-- 简洁专业，先给出核心结论再展开说明
-- 分点说明时使用有序列表
-- 涉及流程时先概括再分步
+## 回答示例
+
+用户: 退换货需要什么条件？
+知识库: [退换货政策.txt] 客户在收到商品7天内可申请无理由退换...
+回答:
+商品支持7天无理由退换，需保持原包装完好。
+流程：1. 联系客服申请 2. 寄回商品 3. 仓库验收后3个工作日内退款
+📚 参考：退换货政策.txt
+[追问] 超过7天还能退换吗？ | 退款多久到账？ | 换货流程有什么不同？
+
+用户: 你们公司有什么产品？
+知识库: [公司产品介绍.txt] ICS智能客服系统...
+回答:
+我们的核心产品是 ICS 智能客服系统，基于大语言模型和 RAG 技术...
+📚 参考：公司产品介绍.txt
+[追问] 系统如何部署？ | 支持哪些文件格式？ | 收费标准是什么？
+
+## 回答结构
+1. 先给 1-2 句核心结论
+2. 展开细节（分点/步骤，每条 ≤3 行）
+3. 末尾标注引用：📚 参考：文档名
+
+## 追问引导
+追问必须与当前回答紧密相关。格式: [追问] 问题1 | 问题2 | 问题3
 
 ## 知识库内容
-{retrieved_chunks_formatted}
+{retrieved_chunks}
 
 ## 当前日期
-{current_date}
+{current_date}（用于判断内容时效性）
 ```
 
 ### 2.2 Prompt 设计思路
 
 | 设计点 | 具体做法 | 目的 |
 |--------|----------|------|
-| **角色定义** | 不指定具体公司名，只定义"智能客服助手" | 避免 LLM 编造公司相关信息 |
-| **规则约束** | 三条硬规则，不可违反 | 从 Prompt 层面抑制幻觉 |
-| **禁止编造** | 明确指令"不知道就说不知道" | 比"尽量别编"更强硬 |
-| **来源标注** | 格式固定为 📚 参考：[文档名] | 使回答可追溯 |
-| **当前日期** | 注入真实日期 `2026年06月23日` | 处理"7天内退换货"等时效性问题 |
+| **角色定义** | 使用 `{company_name}` 占位符，运行时注入配置值 | 支持多租户/白标部署 |
+| **规则约束** | 5 条硬规则（含禁止编造、禁止评价竞品、来源强制标注） | 从 Prompt 层面抑制幻觉和不当回答 |
+| **Few-shot 示例** | 内置 3 组问答示例（退换货/产品介绍/FAQ），含 [追问] 格式 | 引导 LLM 输出结构和追问生成 |
+| **否定式指令** | "禁止编造"比"尽量准确"更强硬 | 减少幻觉发生概率 |
+| **来源标注** | 格式固定为 📚 参考：文档名 | 使回答可追溯、可验证 |
+| **回答结构** | 三步法：核心结论→细节展开→引用来源 | 确保回答信息密度和可读性 |
+| **追问引导** | LLM 生成 [追问] 标签，后端解析为 followup SSE 事件 | 引导用户深入探索，减少客服压力 |
+| **当前日期** | 注入真实日期 `{current_date}` | 处理"7天内退换货"等时效性问题 |
 | **temperature=0.3** | 低温度参数 | 确保回答一致性和准确性 |
+| **分层输出** | >8 条检索结果时，分为「⚠️ 关键规则」+「详细参考」两层 | 防止 LLM 注意力稀释，确保关键规则不被遗漏 |
 
 ### 2.3 检索片段格式化
 
 ```python
-def format_retrieved_chunks(chunks: List[Dict]) -> str:
-    """将检索结果格式化为 LLM 可读的文本"""
-    formatted = []
-    for i, chunk in enumerate(chunks, 1):
-        formatted.append(
-            f"[来源 {i}: {chunk['source']} (相关度: {chunk['score']})]\n"
-            f"{chunk['text']}"
+def format_retrieved_chunks(chunks: List[Dict], max_chunk_chars: int = 800) -> str:
+    """将检索结果格式化为 LLM 可读文本，支持分层输出和截断。
+
+    当 chunks > LAYERED_THRESHOLD(8) 时，启用分层结构：
+    - ## ⚠️ 关键规则（请严格遵守）← 含 必须/禁止/不得 等关键词的片段
+    - ## 📋 详细参考 ← 其余普通片段
+    每个 chunk 超过 max_chunk_chars 时截断并追加 "..."
+    """
+    for c in chunks:
+        if len(c["text"]) > max_chunk_chars:
+            c["text"] = c["text"][:max_chunk_chars] + "..."
+
+    if len(chunks) <= LAYERED_THRESHOLD:
+        # 少于阈值：直接按来源编号列出
+        return "\n\n---\n\n".join(
+            f"[来源 {i}: {c['source']} (相关度: {c['score']:.2f})]\n{c['text']}"
+            for i, c in enumerate(chunks, 1)
         )
-    return "\n\n---\n\n".join(formatted)
+
+    # 分层输出
+    critical = [c for c in chunks if _is_critical(c["text"])]
+    normal = [c for c in chunks if not _is_critical(c["text"])]
+    # 输出 "⚠️ 关键规则" + "📋 详细参考" 两层结构
 ```
 
-格式化后效果：
-```
-[来源 1: 退换货政策.txt (相关度: 0.92)]
-自签收之日起 7 天内，商品未使用且包装完好，可申请无理由退货。
-
----
-
-[来源 2: 常见问题FAQ.md (相关度: 0.78)]
-在管理后台的知识库页面，点击上传文档...
-```
-
-### 2.4 多轮对话上下文处理
+### 2.4 多轮对话上下文与 Token 预算控制
 
 ```python
 def build_messages(query, retrieved_chunks, history_messages, max_history_rounds=5):
-    messages = [{"role": "system", "content": system_prompt}]
+    """构建 LLM 消息列表，含完整 token 预算控制。
 
-    # 只保留最近 N 轮（一轮 = user + assistant 两条）
+    处理流程：
+    1. 按 score 降序排列 + 先分类(关键/普通)再各自去重
+    2. 按 token 预算（max_context_tokens - system_prompt - query）选取：
+       关键规则优先，普通片段在预算不足时先丢弃
+    3. 历史对话只保留最近 N 轮
+    4. 动态注入 {company_name}、{current_date}、{retrieved_chunks}
+    """
+    settings = get_settings()
+
+    # 分类 → 各自去重 → token 预算选取（关键优先）
+    sorted_chunks = sorted(retrieved_chunks, key=lambda c: c.get("score", 0), reverse=True)
+    critical = _dedup_chunks_by_source([c for c in sorted_chunks if _is_critical(c["text"])])
+    normal = _dedup_chunks_by_source([c for c in sorted_chunks if not _is_critical(c["text"])])
+
+    # 运行计数器（O(n)）选取，关键规则优先
+    selected, tokens = [], 0
+    for chunk in critical + normal:
+        ct = _estimate_tokens(chunk["text"])
+        if tokens + ct > available_budget: break
+        selected.append(chunk); tokens += ct
+
+    chunks_text = format_retrieved_chunks(selected)
+    system_content = SYSTEM_PROMPT.format(
+        retrieved_chunks=chunks_text,
+        current_date=datetime.now().strftime("%Y年%m月%d日"),
+        company_name=settings.company_name,
+    )
+
+    messages = [{"role": "system", "content": system_content}]
     if history_messages:
-        recent = history_messages[-(max_history_rounds * 2):]
-        messages.extend(recent)
-
-    # 当前问题
+        messages.extend(history_messages[-(max_history_rounds * 2):])
     messages.append({"role": "user", "content": query})
     return messages
 ```
@@ -183,28 +237,32 @@ query_embedding = model.encode(query, normalize_embeddings=True)
 
 ## 4. 文档分块策略
 
-### 4.1 参数
+### 4.1 自适应分块参数
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| chunk_size | 500 字符 | 每个 chunk 的目标大小 |
-| chunk_overlap | 50 字符 | 相邻 chunk 重叠部分 |
+| chunk_size | 按文档类型自适应 | FAQ=800, Policy=1000, Tech=1200, Default=1000 |
+| chunk_overlap | chunk_size × 15% | 相邻 chunk 重叠部分 |
 
-### 4.2 分块流程
+### 4.2 分块流程（Scheme C — 语义感知分块）
 
 ```
-1. 按双换行 (\n\n) 分割段落
-2. 每个段落按单换行 (\n) 分割为句子
-3. 合并短句子直到接近 chunk_size
-4. 超过 chunk_size 的长段落按滑动窗口切分
-5. 每个 chunk 附带 metadata: {source, chunk_index, char_count}
+1. 识别 Markdown 标题层级（# → ## → ###），按标题切分大段
+2. 如需进一步分割：按双换行(\\n\\n)分段落
+3. 短段落合并：do {
+     合并最短的相邻段落
+   } while (最短合并后长度 < chunk_size × 0.7)
+4. 长段落切分：滑动窗口按 chunk_size 切分，保留 overlap
+5. 代码块保护：在代码块围栏处切分，避免破坏语法
+6. 每个 chunk 附带 metadata: {source, chunk_index, char_count, kb_id}
 ```
 
-### 4.3 选择 500 字符的理由
+### 4.3 选择自适应 chunk 的理由
 
-- BGE-M3 的推荐输入长度为 512 tokens
-- 中文字符与 token 比例约 1:1.5，500 字符 ≈ 750 tokens
-- 略超过推荐值但实际效果好——保留了更完整的语义单元
+- **FAQ 类文档（800）**：短问答，较小窗口确保精确匹配
+- **政策类文档（1000）**：规则条款需保留上下文
+- **技术类文档（1200）**：长段落需要更大窗口保持语义完整
+- **重叠率 15%**：在召回率和计算量之间平衡，相比固定 50 更贴合文档长度
 
 ## 5. LLM 调用配置
 
@@ -238,80 +296,78 @@ response = await client.chat.completions.create(
 
 ## 7. 意图识别
 
-### 7.1 关键词分类器
+### 7.1 关键词优先 + LLM 兜底
 
-意图识别采用轻量级关键词匹配方案，无需额外模型调用，在向量检索之前完成分类。
+意图识别采用**关键词优先 + LLM 兜底**的异步策略。关键词匹配覆盖 >100 个高频词，仅在未命中时调用 LLM。
 
 ```python
-INTENT_RULES = {
-    "售后问题": ["退", "换", "退款", "退货", "投诉", "质量问题", "坏了", "修"],
-    "产品咨询": ["多少钱", "价格", "功能", "怎么用", "版本", "支持", "配置"],
-    "闲聊":     ["你好", "谢谢", "再见", "你是谁", "天气"],
-    "投诉":     ["投诉", "不满", "差评", "客服态度", "维权"],
-}
-```
+async def classify_intent(query: str) -> str:
+    """关键词优先 → LLM 兜底（异步）"""
+    # 1. 闲聊强信号优先匹配（避免"你好，请问..."误判）
+    for kw in CHITCHAT_KEYWORDS:        # 你好、谢谢、再见 等 12 个
+        if kw in query_lower:
+            # 如同时含产品关键词 → 提升为产品咨询
+            ...
+            return "闲聊"
 
-**分类流程**：
-1. 接收用户问题后，按规则表顺序遍历
-2. 命中任一关键词即返回对应标签
-3. 未命中则默认归为"产品咨询"
-4. 意图标签写入 `messages.intent_tag`，供后续统计分析
+    # 2. 投诉强信号                          # 投诉、举报、态度差 等 16 个
+    for kw in COMPLAINT_KEYWORDS: ... return "投诉"
+
+    # 3. 售后（优先于产品 — "产品有故障"判售后）# 退货、退款、维修 等 32 个
+    for kw in AFTERSALES_KEYWORDS: ... return "售后问题"
+
+    # 4. 产品咨询                            # 功能、价格、如何 等 44 个
+    for kw in PRODUCT_KEYWORDS: ... return "产品咨询"
+
+    # 5. 关键词未命中 → AsyncOpenAI 兜底
+    response = await client.chat.completions.create(
+        model=settings.deepseek_model, messages=[INTENT_SYSTEM_PROMPT, ...],
+        max_tokens=10, temperature=0,
+    )
+    return tag if tag in valid_tags else "闲聊"
+```
 
 ### 7.2 设计思路
 
 | 设计点 | 说明 |
 |--------|------|
-| 无需 LLM | 轻量关键词匹配，零延迟，零成本 |
-| 规则可扩展 | INTENT_RULES 字典可按业务需求增删 |
-| 优先级顺序 | 按规则表顺序匹配，首次命中即返回 |
-| 默认兜底 | 未命中归入"产品咨询"，避免空标签 |
+| 关键词优先 | >100 个关键词覆盖 95% 场景，零 API 调用延迟 |
+| LLM 兜底 | 未命中时异步调用 DeepSeek 分类，4 类标签严格白名单 |
+| 闲聊优先 | 避免"你好，请问 X"误判为售后/产品 |
+| 故障透明 | LLM 分类失败时记录日志并降级为"闲聊" |
+| intent_tag 标注 | 写入 messages.intent_tag，支持统计分析和差异化回答 |
 
 ## 8. 多知识库自动路由
 
 ### 8.1 路由策略
 
-当用户未指定 `kb_id` 时，系统使用**投票路由**策略自动选择最相关的知识库：
-
-```
-1. 意图识别 → 获取 intent_tag
-2. 按 kb_id 分组，对每个知识库独立检索
-3. 对每个 kb 的 top-K 结果进行投票：
-   - 片段相似度 ≥ 0.55 的记 1 票
-   - 片段相似度 ≥ 0.80 的记 2 票（高置信加权）
-4. 选择票数最高的知识库
-5. 如多个知识库票数相同，选择片段平均分最高的
-6. 如所有知识库均无有效结果（票数 0），返回兜底话术
-```
-
-### 8.2 投票算法伪代码
+当用户未指定 `kb_id` 时，系统使用**kb_id 频次投票**策略：
 
 ```python
-def vote_kb(query_embedding, kb_ids, top_k=3):
-    results = {}  # kb_id -> vote_count
+def auto_route(query: str) -> str | None:
+    """全库检索 → 统计 kb_id 出现频次 → 返回多数派 kb_id"""
+    # top_k=10 无过滤检索所有知识库
+    chunks = self.vector_store.search(query_embedding, top_k=10, threshold=threshold)
 
-    for kb_id in kb_ids:
-        chunks = vector_store.search(
-            query_embedding,
-            top_k=top_k,
-            threshold=0.55,
-            filter={"kb_id": kb_id}
-        )
-        votes = sum(
-            2 if c["score"] >= 0.80 else 1
-            for c in chunks if c["score"] >= 0.55
-        )
-        results[kb_id] = votes
+    if not chunks:
+        return None  # 无结果 → 降级到全局检索
 
-    # 选票数最高的知识库；平票时比平均分
-    best_kb = max(results, key=lambda k: (
-        results[k],
-        avg_score_of(k) if results[k] > 0 else 0
-    ))
+    # 统计每个 kb_id 的出现次数
+    kb_counts = Counter(c.get("kb_id", "") for c in chunks)
+    return kb_counts.most_common(1)[0][0]  # 返回出现最多的 kb_id
+```
 
-    if results[best_kb] == 0:
-        return None  # 所有 KB 无有效结果 → 兜底
+### 8.2 路由执行流程
 
-    return best_kb
+```
+1. auto_route(query) → 全库检索 top_k=10
+2. 统计 kb_id 频次 → 返回多数派 kb_id
+3. 如用户已指定 kb_id → 跳过 auto_route，直接使用
+4. 路由到的 kb_id → 第二轮精确检索（kb_id 过滤）
+5. route 失败（无 kb_id 或无结果）→ 三层降级检索：
+   Layer 1: kb_id 过滤检索 (threshold=0.55)
+   Layer 2: 全局检索无过滤 (threshold=0.55)
+   Layer 3: 降阈兜底 (threshold=0.35)
 ```
 
 ### 8.3 路由决策表

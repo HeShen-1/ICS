@@ -297,7 +297,7 @@ DocumentIngestion.ingest_file()
    │
    ├─ 2. TextChunker.chunk()
    │     段落感知分割 → 合并短段 → 切分长段
-   │     chunk_size=500, chunk_overlap=50
+   │     chunk_size 按文档类型自适应 (FAQ=800, Policy=1000, Tech=1200)，overlap=15%
    │
    ├─ 3. Embedder.embed()
    │     BGE-M3 批量编码 → 1024 维向量
