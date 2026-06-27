@@ -12,20 +12,15 @@ interface Reference {
   doc_name: string;
   snippet: string;
   score: number;
+  kb_name?: string;
 }
 
 export async function sendMessage(
   sessionId: number,
   content: string,
   callbacks: SSECallback,
-  kbId?: number | null,
 ): Promise<void> {
   const token = localStorage.getItem('token');
-
-  const body: Record<string, unknown> = { content };
-  if (kbId !== undefined && kbId !== null) {
-    body.kb_id = kbId;
-  }
 
   const response = await fetch(`${BASE_URL}/chat/${sessionId}`, {
     method: 'POST',
@@ -33,7 +28,7 @@ export async function sendMessage(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ content }),
   });
 
   if (!response.ok) {
