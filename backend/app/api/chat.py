@@ -42,7 +42,7 @@ async def chat(
         raise HTTPException(status_code=429, detail="今日提问次数已达上限")
 
     # 4. 意图识别（先分类再保存消息）
-    intent_tag = req.intent if req.intent else classify_intent(req.content)
+    intent_tag = req.intent if req.intent else await classify_intent(req.content)
 
     # 5. 首条消息后自动更新会话标题 (取问题前10字)
     if session.title == "新会话" and len(session.messages) == 0:

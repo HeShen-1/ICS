@@ -1,6 +1,9 @@
 """意图识别模块 — 关键词优先 + LLM 兜底"""
-from openai import OpenAI
+import logging
+from openai import AsyncOpenAI
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 # 产品咨询关键词
 PRODUCT_KEYWORDS = [
@@ -69,8 +72,8 @@ INTENT_SYSTEM_PROMPT = """你是客服意图分类器。严格判断用户意图
 注意:只要用户问题涉及产品、服务、功能、业务相关话题,就归为"产品咨询"或"售后问题",不要归为"闲聊"。"""
 
 
-def classify_intent(query: str) -> str:
-    """关键词优先 → LLM 兜底
+async def classify_intent(query: str) -> str:
+    """关键词优先 → LLM 兜底（异步）
 
     Args:
         query: 用户输入的问题文本
@@ -113,12 +116,12 @@ def classify_intent(query: str) -> str:
         return "闲聊"
 
     try:
-        client = OpenAI(
+        client = AsyncOpenAI(
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
             timeout=settings.llm_timeout,
         )
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=settings.deepseek_model,
             messages=[
                 {"role": "system", "content": INTENT_SYSTEM_PROMPT},
@@ -131,11 +134,12 @@ def classify_intent(query: str) -> str:
         valid_tags = {"产品咨询", "售后问题", "投诉", "闲聊"}
         return tag if tag in valid_tags else "闲聊"
     except Exception:
+        logger.warning("Intent LLM classification failed, falling back to 闲聊", exc_info=True)
         return "闲聊"
 
 
-def classify_intent_with_llm(query: str, llm_client: object | None = None) -> str:
-    return classify_intent(query)
+async def classify_intent_with_llm(query: str, llm_client: object | None = None) -> str:
+    return await classify_intent(query)
 
 
 # 旧接口兼容 — 测试用

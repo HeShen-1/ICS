@@ -24,16 +24,24 @@ def _lookup_kb_name(kb_id: str | None) -> str | None:
     if kb_id in _kb_name_cache:
         return _kb_name_cache[kb_id]
     try:
+        kb_id_int = int(kb_id)
+    except (ValueError, TypeError):
+        return None
+    try:
         from app.database import SessionLocal
         from app.models.knowledge_base import KnowledgeBase
 
         db = SessionLocal()
-        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == int(kb_id)).first()
-        db.close()
-        name = kb.name if kb else None
-        _kb_name_cache[kb_id] = name
-        return name
+        try:
+            kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id_int).first()
+            name = kb.name if kb else None
+            _kb_name_cache[kb_id] = name
+            return name
+        finally:
+            db.close()
     except Exception:
+        logger = __import__("logging").getLogger(__name__)
+        logger.warning("KB name lookup failed for kb_id=%s", kb_id, exc_info=True)
         return None
 
 
@@ -82,7 +90,7 @@ async def generate_chat_stream(
 
     # Step 0: 意图识别
     if intent_tag is None and intent_classify:
-        intent_tag = classify_intent(query)
+        intent_tag = await classify_intent(query)
 
     try:
         # Step 1: 自动路由到最匹配的知识库（仅在调用方未指定 kb_id 时）
