@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     upload_dir: str = "./data/uploads"
     max_question_length: int = 500
     daily_question_limit: int = 100
-    top_k: int = 5
-    similarity_threshold: float = 0.65
+    top_k: int = 12
+    similarity_threshold: float = 0.55
     max_history_rounds: int = 5
 
     @field_validator("jwt_secret_key")

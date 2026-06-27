@@ -32,12 +32,15 @@ class Embedder:
         if not texts:
             return []
 
-        embeddings = self.model.encode(
-            texts,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
-        return embeddings.tolist()
+        try:
+            embeddings = self.model.encode(
+                texts,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+            return embeddings.tolist()
+        except Exception as e:
+            raise RuntimeError(f"Embedding 模型编码失败: {e}") from e
 
     def embed_query(self, query: str) -> List[float]:
         """单条查询 embedding"""

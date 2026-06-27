@@ -14,6 +14,27 @@ from app.config import get_settings
 # 模块级单例缓存
 _retriever: Retriever | None = None
 _llm: LLMClient | None = None
+_kb_name_cache: dict[str, str] = {}
+
+
+def _lookup_kb_name(kb_id: str | None) -> str | None:
+    """查询知识库名称，带缓存"""
+    if not kb_id:
+        return None
+    if kb_id in _kb_name_cache:
+        return _kb_name_cache[kb_id]
+    try:
+        from app.database import SessionLocal
+        from app.models.knowledge_base import KnowledgeBase
+
+        db = SessionLocal()
+        kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == int(kb_id)).first()
+        db.close()
+        name = kb.name if kb else None
+        _kb_name_cache[kb_id] = name
+        return name
+    except Exception:
+        return None
 
 
 def get_retriever() -> Retriever:
@@ -64,31 +85,40 @@ async def generate_chat_stream(
         intent_tag = classify_intent(query)
 
     try:
-        # Step 1: 检索
-        if kb_id is None:
-            kb_id = retriever.auto_route(query)
-        if kb_id is None:
-            # 自动路由失败(无KB或无匹配), 返回兜底话术而非跨库搜索
-            fallback = get_fallback_response()
-            for char in fallback:
-                yield _sse_event("token", {"text": char})
-                await asyncio.sleep(0.02)
-            yield _sse_event("sources", {"references": get_fallback_sources()})
-            yield _sse_event("done", {
-                "message_id": None,
-                "empty_retrieval": True,
-                "intent_tag": intent_tag,
-            })
-            return
+        # Step 1: 自动路由到最匹配的知识库
+        kb_id = retriever.auto_route(query)
+        kb_name = _lookup_kb_name(kb_id)
 
-        chunks = retriever.search(query, kb_id=kb_id)
+        # Step 2: 检索 — 三层降级
+        chunks = []
+        if kb_id is not None:
+            # 第一层: 路由到特定知识库检索
+            chunks = retriever.search(query, kb_id=kb_id)
 
-        # Step 2: 检查检索结果
+        if not chunks and kb_id is None:
+            # 第二层: auto_route 失败, 尝试无过滤全局检索
+            chunks = retriever.search(query, kb_id=None)
+
+        if not chunks:
+            # 第三层: 降低阈值再试
+            chunks = retriever.vector_store.search(
+                query_embedding=retriever.embedder.embed_query(query),
+                top_k=settings.top_k,
+                threshold=0.35,  # 大幅降低, 兜底
+            )
+            if chunks:
+                # 取多数派 kb_id 作为路由
+                from collections import Counter
+                kb_counts = Counter(c.get("kb_id", "") for c in chunks)
+                kb_id = kb_counts.most_common(1)[0][0] if kb_counts else None
+                kb_name = _lookup_kb_name(kb_id)
+
+        # 最终仍无结果 → 兜底
         if not chunks:
             fallback = get_fallback_response()
             for char in fallback:
                 yield _sse_event("token", {"text": char})
-                await asyncio.sleep(0.02)  # 模拟打字效果
+                await asyncio.sleep(0.02)
             yield _sse_event("sources", {"references": get_fallback_sources()})
             yield _sse_event("done", {
                 "message_id": None,
@@ -111,11 +141,18 @@ async def generate_chat_stream(
             full_response += token
             yield _sse_event("token", {"text": token})
 
-        # Step 5: 发送引用来源
-        sources = [
-            {"doc_name": c["source"], "snippet": c["text"][:100], "score": c["score"]}
-            for c in chunks
-        ]
+        # Step 5: 发送引用来源（含知识库名称，按文档去重）
+        seen_sources = {}
+        for c in chunks:
+            doc = c["source"]
+            if doc not in seen_sources or c["score"] > seen_sources[doc]["score"]:
+                seen_sources[doc] = {
+                    "doc_name": doc,
+                    "snippet": c["text"][:100],
+                    "score": c["score"],
+                    "kb_name": kb_name or "",
+                }
+        sources = list(seen_sources.values())
         yield _sse_event("sources", {"references": sources})
 
         # Step 5.5: 解析追问并发送 followup 事件
