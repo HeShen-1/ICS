@@ -142,14 +142,6 @@ async def classify_intent_with_llm(query: str, llm_client: object | None = None)
     return await classify_intent(query)
 
 
-# 旧接口兼容 — 测试用
-INTENT_KEYWORDS = {
-    "产品咨询": PRODUCT_KEYWORDS,
-    "售后问题": AFTERSALES_KEYWORDS,
-    "投诉": COMPLAINT_KEYWORDS,
-}
-
-
 def _keyword_classify(query: str) -> str:
     """关键词分类（投诉优先, 闲聊兜底）"""
     query_lower = query.lower().strip()
