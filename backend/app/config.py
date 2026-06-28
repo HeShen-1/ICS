@@ -49,7 +49,14 @@ class Settings(BaseSettings):
     max_upload_size: int = 10 * 1024 * 1024  # 10MB
     fallback_threshold: float = 0.35
     llm_max_retries: int = 3
+    llm_rewrite_enabled: bool = True  # 检索前 LLM Query Rewriting
+    prompt_injection_enabled: bool = True  # Prompt 注入检测
     company_name: str = "云智客服平台"
+
+    # RAGAS 自动评估
+    ragas_llm_model: str = "deepseek-chat"  # 评估用的 LLM 模型
+    eval_retrieval_top_k: int = 12  # 评估时的检索 top_k
+    eval_similarity_threshold: float = 0.55  # 评估时的相似度阈值
 
     @field_validator("jwt_secret_key")
     @classmethod

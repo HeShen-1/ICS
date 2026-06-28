@@ -39,4 +39,13 @@ def validate_question(content: str) -> str | None:
         return "问题不能为空"
     if len(content) > settings.max_question_length:
         return f"问题长度不能超过 {settings.max_question_length} 字"
+
+    # Prompt injection detection
+    if settings.prompt_injection_enabled:
+        from app.utils.security import check_injection
+
+        injection_error = check_injection(content)
+        if injection_error:
+            return injection_error
+
     return None

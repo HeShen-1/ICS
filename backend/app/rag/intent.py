@@ -2,6 +2,7 @@
 import logging
 from openai import AsyncOpenAI
 from app.config import get_settings
+from app.utils.security import sanitize_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,8 @@ async def classify_intent(query: str) -> str:
     Returns:
         意图标签: "产品咨询" | "售后问题" | "投诉" | "闲聊"
     """
+    # Sanitize for prompt safety
+    query = sanitize_for_prompt(query)
     query_lower = query.lower().strip()
 
     # 1. 先匹配闲聊强信号（避免把"你好,请问..."判为售后）
