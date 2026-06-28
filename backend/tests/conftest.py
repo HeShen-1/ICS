@@ -127,3 +127,59 @@ def auth_headers(test_client):
     assert response.status_code == 200, f"Register failed: {response.text}"
     data = response.json()
     return {"Authorization": f"Bearer {data['token']}"}
+
+
+# ── RAG Evaluation Mock Fixtures ──────────────────────────────
+
+@pytest.fixture
+def mock_embedder():
+    """Mock Embedder for RAG evaluation tests (no real model loading)."""
+    from unittest.mock import patch, MagicMock
+    with patch("app.rag.embedder.Embedder") as mock_cls:
+        instance = MagicMock()
+        # Return a dummy 10-dim vector per query / text
+        instance.embed_query.return_value = [0.1] * 10
+        instance.embed.return_value = [[0.1] * 10]
+        mock_cls.return_value = instance
+        yield mock_cls
+
+
+@pytest.fixture
+def mock_llm_client():
+    """Mock LLMClient for RAG evaluation tests (no real API calls)."""
+    from unittest.mock import patch, MagicMock
+
+    class _FakeChoice:
+        def __init__(self, content: str):
+            self.message = MagicMock(content=content)
+
+    class _FakeResponse:
+        def __init__(self, content: str):
+            self.choices = [_FakeChoice(content)]
+
+    with patch("app.rag.llm.LLMClient") as mock_cls:
+        instance = MagicMock()
+        # chat_stream returns an async generator yielding one token
+        async def _chat_stream(messages):
+            yield "mock answer from knowledge base"
+        instance.chat_stream = _chat_stream
+        # chat returns a fake response
+        async def _chat(messages, temperature=0.0, max_tokens=None):
+            return _FakeResponse("mock response")
+        instance.chat = _chat
+        mock_cls.return_value = instance
+        yield mock_cls
+
+
+@pytest.fixture
+def mock_retriever(mock_embedder):
+    """Mock Retriever for RAG evaluation tests (no real vector store)."""
+    from unittest.mock import patch, MagicMock
+    with patch("app.rag.retriever.Retriever") as mock_cls:
+        instance = MagicMock()
+        # Default: return empty (no retrieval)
+        instance.search.return_value = []
+        instance.multi_search.return_value = []
+        instance.auto_route.return_value = None
+        mock_cls.return_value = instance
+        yield mock_cls
