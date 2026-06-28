@@ -31,8 +31,10 @@ class Document(Base):
     chunk_count = Column(Integer, default=0, comment="分块数量")
     file_size = Column(Integer, default=0, comment="文件大小(bytes)")
     file_path = Column(String(500), nullable=True, comment="文件磁盘路径")
+    content_hash = Column(String(64), nullable=True, comment="SHA256 content hash for incremental update")
     milvus_ids = Column(JSON, nullable=True, comment="Milvus向量ID数组")
     error_msg = Column(Text, nullable=True, comment="失败原因")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="最后更新时间")
     created_at = Column(DateTime, server_default=func.now(), comment="上传时间")
 
     kb = relationship("KnowledgeBase", back_populates="documents")

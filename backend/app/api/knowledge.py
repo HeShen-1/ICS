@@ -36,7 +36,9 @@ def _doc_to_out(doc) -> DocumentOut:
         file_size=doc.file_size,
         kb_id=doc.kb_id,
         kb_name=doc.kb.name if doc.kb else None,
+        content_hash=doc.content_hash,
         created_at=doc.created_at,
+        updated_at=doc.updated_at,
     )
 
 
@@ -211,5 +213,29 @@ def delete_doc(
     try:
         knowledge_service.delete_document(db, doc_id, user_id)
         return {"message": "删除成功"}
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
+
+
+@router.put("/{doc_id}", response_model=DocumentOut)
+async def update_doc(
+    doc_id: int,
+    file: UploadFile = File(...),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """增量更新文档 — 仅更新变化的分块"""
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"不支持的文件格式: {ext}")
+
+    content = await file.read()
+    max_size = get_settings().max_upload_size
+    if len(content) > max_size:
+        raise HTTPException(400, "文件大小不能超过 10MB")
+
+    try:
+        doc = knowledge_service.update_document(db, doc_id, user_id, content, file.filename)
+        return _doc_to_out(doc)
     except ValueError as e:
         raise HTTPException(404, detail=str(e))

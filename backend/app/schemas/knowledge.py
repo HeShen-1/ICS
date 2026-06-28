@@ -44,7 +44,9 @@ class DocumentOut(BaseModel):
     file_size: int
     kb_id: int | None = None
     kb_name: str | None = None
+    content_hash: str | None = None
     created_at: datetime
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True

@@ -91,9 +91,12 @@ CREATE TABLE IF NOT EXISTS documents (
     status ENUM('processing', 'ready', 'failed') DEFAULT 'processing' COMMENT '处理状态',
     chunk_count INT DEFAULT 0 COMMENT '分块数量',
     file_size INT DEFAULT 0 COMMENT '文件大小(bytes)',
+    file_path VARCHAR(500) DEFAULT NULL COMMENT '文件磁盘路径',
+    content_hash VARCHAR(64) DEFAULT NULL COMMENT 'SHA256 content hash for incremental update',
     milvus_ids JSON DEFAULT NULL COMMENT 'Milvus向量ID数组',
     error_msg TEXT DEFAULT NULL COMMENT '失败原因',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
     CONSTRAINT fk_documents_user
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE,
@@ -128,3 +131,4 @@ CREATE INDEX idx_kb_user_id ON knowledge_bases(user_id);
 CREATE INDEX idx_documents_user_id ON documents(user_id);
 CREATE INDEX idx_documents_kb_id ON documents(kb_id);
 CREATE INDEX idx_documents_status ON documents(status);
+CREATE INDEX idx_documents_content_hash ON documents(content_hash);

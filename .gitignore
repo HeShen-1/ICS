@@ -58,4 +58,4 @@ AI开发工程师笔试题.md
 *.bin
 *.safetensors
 *.onnx
-models/
+/models/
