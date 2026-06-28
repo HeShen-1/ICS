@@ -41,7 +41,7 @@ POST /api/auth/register
 
 ```json
 {
-  "phone": "13800138000",
+  "phone": "13800000001",
   "password": "Test1234!@"
 }
 ```
@@ -80,7 +80,7 @@ POST /api/auth/login
 
 ```json
 {
-  "account": "13800138000",
+  "account": "13800000001",
   "password": "Test1234!@"
 }
 ```

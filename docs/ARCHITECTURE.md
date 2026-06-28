@@ -65,7 +65,7 @@
 
 ### ADR-002: 选择 DeepSeek API 作为 LLM
 
-**决策**：使用 DeepSeek API（`deepseek-chat`）。
+**决策**：使用 DeepSeek API（`deepseek-v4-flash`）。
 
 **理由**：
 - 兼容 OpenAI SDK，零迁移成本
@@ -297,7 +297,7 @@ DocumentIngestion.ingest_file()
    │
    ├─ 2. TextChunker.chunk()
    │     段落感知分割 → 合并短段 → 切分长段
-   │     chunk_size 按文档类型自适应 (FAQ=800, Policy=1000, Tech=1200)，overlap=15%
+   │     chunk_size 按文档类型自适应 (FAQ=256, Policy=400, Tech=600)，overlap=15%
    │
    ├─ 3. Embedder.embed()
    │     BGE-M3 批量编码 → 1024 维向量

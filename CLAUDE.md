@@ -48,10 +48,12 @@ ICS/
 │   │       ├── stream.py        #   SSE 事件生成器
 │   │       ├── intent.py          #   意图识别与追问
 │   │       └── fallback.py      #   空检索兜底
-│   │   └── agent/               # 多知识库路由与问题拆解
+│   │   ├── utils/               # 工具模块
+│   │   │   └── security.py      #   Prompt Injection 三层防御
+│   │   ├── agent/               # 多知识库路由与问题拆解
 │   │       ├── decomposer.py    #   复杂问题拆解
 │   │       └── prompt.py        #   路由 Prompt 模板
-│   ├── tests/                   # 后端测试 (98 个用例, 84% 覆盖率)
+│   ├── tests/                   # 后端测试 (127 个用例, 84% 覆盖率)
 │   ├── db/init.sql              # 建表语句
 │   ├── example_docs/            # 测试知识库文档 (7 篇, 分类存入 3 个建议知识库: 产品知识库/售后与服务/法律条款)
 │   ├── data/                    # 运行时数据 (uploads/, milvus/) — gitignore
@@ -98,9 +100,9 @@ schemas  database
 ### RAG 核心链路
 
 ```
-用户问题 → 校验(≤500字/≤100次/天) → BGE-M3 Embedding → Milvus 检索(top_k=12, threshold=0.55)
+用户问题 → 注入检测(三层:API→服务→Prompt) → 校验(≤500字/≤100次/天) → BGE-M3 Embedding → Milvus 检索(top_k=12, threshold=0.55)
   → 检索为空? → 兜底话术(不调LLM)
-  → 检索有结果? → Prompt拼接(System+历史+知识片段) → DeepSeek stream → SSE逐字输出
+  → 检索有结果? → Prompt拼接(System+历史+知识片段+安全裹挟) → DeepSeek stream → SSE逐字输出
   → 保存消息 + 引用来源 → MySQL
 ```
 
@@ -196,7 +198,7 @@ npm run dev                          # http://localhost:5173
 curl http://localhost:8000/api/health
 curl -X POST http://localhost:8000/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"phone":"13800000001","password":"123456"}'
+  -d '{"phone":"13800000001","password":"Test1234!@"}'
 
 # 测试知识库 API (需先登录获取 TOKEN)
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/knowledge/1/content  # 查看文档内容
@@ -204,7 +206,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/knowledge/1/chu
 
 # 运行测试
 cd backend
-pytest tests/ -q                      # 98 个后端测试 (84% 覆盖率)
+pytest tests/ -q                      # 127 个后端测试 (84% 覆盖率)
 pytest tests/ --cov=app --cov-report=term-missing
 
 cd frontend
@@ -215,7 +217,7 @@ npx vitest run                        # 33 个前端测试 (3 个测试文件)
 
 ```python
 # chunker
-TextChunker(chunk_size=500, chunk_overlap=50).chunk(text, metadata) -> list[dict]
+TextChunker(chunk_size=None, chunk_overlap=None).chunk(text, metadata) -> list[dict]  # None=自适应(FAQ=256/Policy=400/Tech=600)
 
 # embedder
 Embedder().embed_query(query: str) -> list[float]     # 1024维
@@ -287,14 +289,20 @@ generate_chat_stream(query, session_id, history) -> AsyncGenerator[str, None]
 
 | 加分项 | 状态 | 实现位置 |
 |--------|------|----------|
-| 意图识别 | 已实现 | `rag/intent.py` — 关键词+规则引擎，区分咨询/投诉/闲聊/未知 |
-| 追问支持 | 已实现 | `rag/intent.py` — 对话历史分析，保留上一轮检索上下文 |
+| 意图识别 | 已实现 | `rag/intent.py` — 关键词+LLM兜底，区分咨询/投诉/闲聊/产品 |
+| 追问支持 | 已实现 | `rag/stream.py` — followup SSE 事件，自动生成3个追问建议 |
 | 管理后台数据看板 | 已实现 | `StatsPage` + `services/stats_service.py` + `api/stats.py` |
 | 检索保障 | 已实现 | 相似度阈值过滤 + 空检索兜底 + LLM 3次重试 + 来源强制标注 |
 | 多知识库路由 | 已实现 | `agent/decomposer.py` + `agent/prompt.py` — 问题拆解与 KB 路由 |
+| AI Agent 任务拆解 | 已实现 | `agent/decomposer.py` — 加载系统文档 + LLM 拆解为任务列表 |
+| 大规模检索保障 | 已实现 | `rag/prompt.py` — 关键规则优先 + 分层输出(>8条时) |
+| 知识库增量更新 | 已实现 | `rag/ingestion.py` — chunk 级 hash diff，精确增删 |
+| Prompt Injection 防护 | 已实现 | `utils/security.py` — API/服务/Prompt 三层防御 |
+| RAG 自动化评估 | 已实现 | `tests/test_rag/test_evaluation.py` — 15组QA, 7个评估用例 |
+| E2E 测试 | 已实现 | `frontend/e2e/` — Playwright 21 用例，覆盖6个页面 |
 
 ## 测试
 
-- **后端**: 98 个 pytest 用例 (84% 覆盖率)，覆盖 rag/ api/ services/ agent/
-- **前端**: 33 个 vitest 用例 (3 个测试文件)，覆盖 stores/ lib/ components/
-- **合计**: 131 个测试用例
+- **后端**: 127 个 pytest 用例 (84% 覆盖率)，覆盖 rag/ api/ services/ agent/
+- **前端**: 33 个 vitest 用例 + 21 个 Playwright E2E 用例，覆盖 stores/ lib/ components/ pages/
+- **合计**: 181 个测试用例

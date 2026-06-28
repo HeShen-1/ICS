@@ -107,7 +107,7 @@ npm run dev
 │   │   ├── models/              # ORM 模型 (user/session/message/feedback/document/knowledge_base)
 │   │   ├── schemas/             # Pydantic 请求/响应 Schema
 │   │   ├── rag/                 # RAG 核心引擎
-│   │   │   ├── chunker.py       #   自适应分块 (Scheme C: FAQ=800/Policy=1000/Tech=1200)
+│   │   │   ├── chunker.py       #   自适应分块 (Scheme C: FAQ=256/Policy=400/Tech=600)
 │   │   │   ├── embedder.py      #   BGE-M3 本地 Embedding (单例+缓存)
 │   │   │   ├── vector_store.py  #   Milvus CRUD + HNSW 索引
 │   │   │   ├── retriever.py     #   检索服务 (关键词重排序 + auto_route)
