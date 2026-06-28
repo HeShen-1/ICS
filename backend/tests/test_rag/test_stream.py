@@ -92,7 +92,7 @@ class TestEmptyRetrievalFallback:
 
         mock_retriever = MagicMock()
         mock_retriever.auto_route.return_value = "kb1"
-        mock_retriever.search.return_value = []  # layer 1 & 2 empty
+        mock_retriever.multi_search.return_value = []  # layer 1 & 2 empty
         # layer 3: vector_store.search also returns empty
         mock_retriever.vector_store.search.return_value = []
 
@@ -121,7 +121,7 @@ class TestEmptyRetrievalFallback:
         mock_retriever = MagicMock()
         mock_retriever.auto_route.return_value = None
         # Layer 2 (unfiltered search) returns chunks → should NOT hit fallback
-        mock_retriever.search.return_value = [
+        mock_retriever.multi_search.return_value = [
             {"source": "test.md", "text": "content", "score": 0.72, "kb_id": "1"}
         ]
 
@@ -139,7 +139,7 @@ class TestEmptyRetrievalFallback:
             )
 
         # Layer 2 unfiltered search should have been called
-        mock_retriever.search.assert_called()
+        mock_retriever.multi_search.assert_called()
         done = [d for t, d in events if t == "done"]
         assert len(done) == 1
         assert done[0].get("empty_retrieval") is not True
@@ -152,7 +152,7 @@ class TestStreamErrors:
 
         mock_retriever = MagicMock()
         mock_retriever.auto_route.return_value = "kb1"
-        mock_retriever.search.return_value = [
+        mock_retriever.multi_search.return_value = [
             {"source": "test.md", "text": "some content", "score": 0.95}
         ]
 
@@ -181,7 +181,7 @@ class TestStreamErrors:
 
         mock_retriever = MagicMock()
         mock_retriever.auto_route.return_value = "kb1"
-        mock_retriever.search.return_value = [
+        mock_retriever.multi_search.return_value = [
             {"source": "test.md", "text": "content", "score": 0.95}
         ]
 
@@ -215,7 +215,7 @@ class TestStreamErrors:
 
         mock_retriever = MagicMock()
         mock_retriever.auto_route.return_value = "kb1"
-        mock_retriever.search.return_value = [
+        mock_retriever.multi_search.return_value = [
             {"source": "test.md", "text": "content", "score": 0.95}
         ]
 

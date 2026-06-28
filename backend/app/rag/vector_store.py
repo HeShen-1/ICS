@@ -24,7 +24,7 @@ class VectorStore:
         return self._client
 
     def _ensure_collection(self):
-        """确保 collection 存在并已加载"""
+        """确保 collection 存在、索引已建、已加载"""
         exists = self.client.has_collection(self.COLLECTION_NAME)
         if not exists:
             self.client.create_collection(
@@ -34,16 +34,22 @@ class VectorStore:
                 auto_id=True,
                 enable_dynamic_field=True,
             )
-            # Create HNSW index for scalable vector search
+
+        # Create HNSW index (skip if already exists)
+        existing = self.client.list_indexes(self.COLLECTION_NAME)
+        if not existing:
+            idx_params = self.client.prepare_index_params()
+            idx_params.add_index(
+                field_name="vector",
+                index_type="HNSW",
+                metric_type="COSINE",
+                params={"M": 16, "efConstruction": 200},
+            )
             self.client.create_index(
                 collection_name=self.COLLECTION_NAME,
-                field_name="vector",
-                index_params={
-                    "index_type": "HNSW",
-                    "metric_type": "COSINE",
-                    "params": {"M": 16, "efConstruction": 200},
-                },
+                index_params=idx_params,
             )
+
         # pymilvus 3.0 需要显式 load 才能 search
         self.client.load_collection(self.COLLECTION_NAME)
 
@@ -51,7 +57,7 @@ class VectorStore:
         """批量插入 chunk + embedding, 返回 Milvus 主键 ID 列表
 
         Args:
-            chunks: 分块列表
+            chunks: 分块列表，每项含 text + metadata
             embeddings: embedding 向量列表
             kb_id: 可选的知识库 ID, 写入每个 chunk 的 metadata
         """
@@ -60,11 +66,13 @@ class VectorStore:
 
         data = []
         for chunk, emb in zip(chunks, embeddings):
+            chunk_meta = chunk.get("metadata", {})
             entry = {
                 "vector": emb,
                 "text": chunk["text"],
-                "source": chunk["metadata"].get("source", "unknown"),
-                "chunk_index": chunk["metadata"].get("chunk_index", 0),
+                "source": chunk_meta.get("source", "unknown"),
+                "chunk_index": chunk_meta.get("chunk_index", 0),
+                "header_path": chunk_meta.get("header_path", ""),
             }
             if kb_id:
                 entry["kb_id"] = kb_id
@@ -90,7 +98,7 @@ class VectorStore:
                 collection_name=self.COLLECTION_NAME,
                 data=[query_embedding],
                 limit=top_k,
-                output_fields=["text", "source", "chunk_index", "kb_id"],
+                output_fields=["text", "source", "chunk_index", "kb_id", "header_path"],
                 filter=filter_expr,
             )
         except Exception as e:
@@ -105,6 +113,7 @@ class VectorStore:
                     "chunk_index": hit["entity"]["chunk_index"],
                     "score": round(hit["distance"], 4),
                     "kb_id": hit["entity"].get("kb_id", ""),
+                    "header_path": hit["entity"].get("header_path", ""),
                 })
         return hits
 

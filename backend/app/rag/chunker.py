@@ -1,14 +1,15 @@
 """文档分块模块
 
-策略 (方案 C — 混合分块):
+策略 (方案 C — 混合分块 + Q&A 保护):
 1. 解析 Markdown 标题结构 (##/###) → 构建标题路径
 2. 每个 section 作为候选块:
+   - Q&A 模式 (Q数字:|问：) → 强制独立成块，不与其他 section 合并
    - ≤ max_size → 直接作为一个 chunk
    - > max_size → 在段落边界 (\\n\\n > \\n > 。！？) 切分
-3. 每个 chunk 携带完整标题路径: "[父标题 > 子标题]"
+3. header_path 存入 metadata，不拼入 chunk text（保持 embedding 精度）
 4. 代码块 (```...```) 完整性保护, 不切断
 5. chunk_size 按文档类型自适应:
-   - FAQ / 问答: 800
+   - FAQ / 问答: 256 (保证每个 Q&A 独立)
    - 政策 / 协议 / 条款: 1000
    - 技术 / 说明 / 介绍: 1200
    - 默认: 1000
@@ -18,15 +19,18 @@ import re
 
 
 class TextChunker:
-    """文本分块器 — Markdown 语义感知"""
+    """文本分块器 — Markdown 语义感知 + Q&A 保护"""
 
     # 文档类型 → 推荐 chunk_size
     _TYPE_SIZES = {
-        "faq": 800,
-        "policy": 1000,
-        "tech": 1200,
-        "default": 1000,
+        "faq": 256,      # Q&A 对独立成块
+        "policy": 400,   # 政策/协议 — 每 1-2 个 section 一块
+        "tech": 600,     # 技术文档
+        "default": 600,  # 通用
     }
+
+    # Q&A 模式: Q1:, Q2:, 问：, 答：
+    _QA_PATTERN = re.compile(r"^(?:Q\d+\s*[：:]|问\s*[：:]|答\s*[：:])", re.IGNORECASE)
 
     def __init__(self, chunk_size: int | None = None, chunk_overlap: int | None = None):
         """
@@ -36,7 +40,6 @@ class TextChunker:
         """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        # 两个都显式设置时提前校验
         if chunk_size is not None and chunk_overlap is not None:
             if chunk_overlap > chunk_size // 2:
                 raise ValueError(
@@ -48,7 +51,8 @@ class TextChunker:
 
     def chunk(self, text: str, metadata: Dict[str, str] | None = None) -> List[Dict]:
         """
-        将文本切分为带 metadata 的 chunk 列表
+        将文本切分为带 metadata 的 chunk 列表。
+        header_path 存入 metadata，不污染 chunk text。
 
         Args:
             text: 原始文本
@@ -77,31 +81,45 @@ class TextChunker:
                 f"of chunk_size ({chunk_size}), got {overlap} > {chunk_size // 2}"
             )
 
-        # 1. 解析 Markdown 结构
+        # 1. 解析 Markdown 结构 → [(header_path, section_text), ...]
         sections = self._parse_sections(text)
 
-        # 2. 每 section 生成 chunk — 返回 (header_path, text) 元组
-        raw_chunks: List[tuple] = []  # [(header_path, text), ...]
+        # 2. 每 section 生成 chunk candidates
+        raw_chunks: List[Dict] = []  # [{header_path, text, is_qa}, ...]
         for header_path, section_text in sections:
             if not section_text.strip():
                 continue
+            is_qa = bool(self._QA_PATTERN.search(section_text))
             if len(section_text) <= chunk_size:
-                raw_chunks.append((header_path, self._format_chunk(header_path, section_text)))
+                raw_chunks.append({
+                    "header_path": header_path,
+                    "text": section_text.strip(),
+                    "is_qa": is_qa,
+                })
             else:
-                for sub_text in self._split_section(header_path, section_text, chunk_size):
-                    raw_chunks.append((header_path, sub_text))
+                for sub_text in self._split_section_text(header_path, section_text, chunk_size):
+                    raw_chunks.append({
+                        "header_path": header_path,
+                        "text": sub_text,
+                        "is_qa": is_qa,
+                    })
 
-        # 3. 轻量重叠：仅同 section 子块间共享1句上下文
+        # 3. 轻量重叠：仅同 section 连续子块间共享 1 句上下文
         final_chunks = self._apply_overlap(raw_chunks, overlap)
 
-        # 4. 组装输出
+        # 4. 组装输出 — header_path 进 metadata, text 保持纯净
         return [
             {
-                "text": c.strip(),
-                "metadata": {**meta, "chunk_index": i, "char_count": len(c.strip())},
+                "text": c["text"].strip(),
+                "metadata": {
+                    **meta,
+                    "chunk_index": i,
+                    "char_count": len(c["text"].strip()),
+                    "header_path": c.get("header_path", ""),
+                },
             }
             for i, c in enumerate(final_chunks)
-            if c.strip()
+            if c["text"].strip()
         ]
 
     # ── 文档类型检测 ─────────────────────────────────
@@ -129,10 +147,8 @@ class TextChunker:
         返回 [(header_path, content), ...]
         header_path 示例: "常见问题 > 账号相关 > 如何注册"
         """
-        # 匹配 ATX 标题 (# 开头)
         heading_re = re.compile(r"^(#{1,4})\s+(.+)$", re.MULTILINE)
 
-        # 找到所有标题位置
         headings: List[tuple] = []  # (start, end, level, title)
         for m in heading_re.finditer(text):
             level = len(m.group(1))
@@ -140,12 +156,11 @@ class TextChunker:
             headings.append((m.start(), m.end(), level, title))
 
         if not headings:
-            # 无标题 — 整篇作为一个 section
             return [("", text)]
 
         sections = []
 
-        # 标题前的导言（H1 之前或第一个 ## 之前）
+        # 标题前的导言
         if headings[0][0] > 0:
             pre = text[: headings[0][0]].strip()
             if pre:
@@ -155,17 +170,14 @@ class TextChunker:
         stack = [""] * 4
 
         for i, (start, end, level, title) in enumerate(headings):
-            idx = level - 1  # 0-based
+            idx = level - 1
             stack[idx] = title
-            # 清除更低层级
             for j in range(idx + 1, 4):
                 stack[j] = ""
 
-            # 标题路径
             path_parts = [h for h in stack if h]
             header_path = " > ".join(path_parts)
 
-            # 内容区间: 当前标题之后 → 下一标题之前 (或文末)
             content_start = end
             content_end = headings[i + 1][0] if i + 1 < len(headings) else len(text)
             content = text[content_start:content_end].strip()
@@ -177,7 +189,7 @@ class TextChunker:
 
     # ── 长 section 段落级切分 ──────────────────────────
 
-    def _split_section(
+    def _split_section_text(
         self, header_path: str, text: str, max_size: int
     ) -> List[str]:
         """对超过 max_size 的 section 在段落边界切分, 不重叠"""
@@ -186,14 +198,14 @@ class TextChunker:
 
         while remaining.strip():
             if len(remaining) <= max_size:
-                chunks.append(self._format_chunk(header_path, remaining))
+                chunks.append(remaining.strip())
                 break
 
             split_at = self._find_split_point(remaining, max_size)
 
             chunk_text = remaining[:split_at].strip()
             if chunk_text:
-                chunks.append(self._format_chunk(header_path, chunk_text))
+                chunks.append(chunk_text)
 
             remaining = remaining[split_at:]
 
@@ -205,9 +217,9 @@ class TextChunker:
         优先级: \\n\\n > \\n > 。！？； > max_size 硬切
         """
         window = text[:max_size]
-        min_bound = max_size // 2  # 不切得太碎
+        min_bound = max_size // 2
 
-        # 跳过代码块内部 — 找到最近的未闭合 ```
+        # 跳过代码块内部
         code_fence = self._find_fence_boundary(window, min_bound)
         if code_fence is not None:
             return code_fence
@@ -233,48 +245,33 @@ class TextChunker:
 
     @staticmethod
     def _find_fence_boundary(window: str, min_bound: int) -> int | None:
-        """
-        如果 min_bound..max_size 区间内存在未闭合的 ```,
-        返回代码块之前的切分点; 否则返回 None
-        """
-        # 统计 window 中 ``` 出现次数
         fences = [m.start() for m in re.finditer(r"^```", window, re.MULTILINE)]
         if len(fences) % 2 == 1:
-            # 奇数个 ``` — 有一个未闭合, 切在最后一个 ``` 之前
             last_fence = fences[-1]
             if last_fence > min_bound:
                 return last_fence
         return None
 
-    # ── chunk 格式化 ──────────────────────────────────
-
-    @staticmethod
-    def _format_chunk(header_path: str, text: str) -> str:
-        """为 chunk 添加标题上下文前缀"""
-        if header_path:
-            return f"[{header_path}]\n{text.strip()}"
-        return text.strip()
-
     # ── 重叠处理 ──────────────────────────────────────
 
     @staticmethod
-    def _apply_overlap(chunks: List[tuple], overlap: int) -> List[str]:
-        """仅在同一个 section 的连续子块间加 1 句上下文衔接, 不同 section 间不重叠"""
-        if not chunks:
+    def _apply_overlap(raw_chunks: List[Dict], overlap: int) -> List[Dict]:
+        """仅在同 section 连续子块间加 1 句上下文衔接, 不同 section 间不重叠"""
+        if not raw_chunks:
             return []
 
-        result = [chunks[0][1]]  # 第一个 chunk 的 text
-        for i in range(1, len(chunks)):
-            prev_h, prev_text = chunks[i - 1]
-            curr_h, curr_text = chunks[i]
+        result = [dict(raw_chunks[0])]
+        for i in range(1, len(raw_chunks)):
+            prev = raw_chunks[i - 1]
+            curr = dict(raw_chunks[i])
 
-            # 不同 section → 不加重叠
-            if prev_h != curr_h or overlap <= 0 or len(prev_text) <= overlap:
-                result.append(curr_text)
+            same_section = prev["header_path"] == curr["header_path"]
+            if not same_section or overlap <= 0 or len(prev["text"]) <= overlap:
+                result.append(curr)
                 continue
 
-            # 取上一块末尾 ~overlap 字符, 找到最后一个完整句子
-            tail = prev_text[-overlap:]
+            # 取上一块末尾 ~overlap 字符, 找最后一个完整句子
+            tail = prev["text"][-overlap:]
             best = 0
             for sep in ("\n\n", "\n", "。", "！", "？"):
                 pos = tail.rfind(sep)
@@ -283,9 +280,9 @@ class TextChunker:
             context = tail[best:].strip() if best > 0 else ""
 
             if context:
-                result.append(f"(上文续)\n{context}\n---\n{curr_text}")
-            else:
-                result.append(curr_text)
+                curr["text"] = f"(上文续)\n{context}\n---\n{curr['text']}"
+
+            result.append(curr)
 
         return result
 

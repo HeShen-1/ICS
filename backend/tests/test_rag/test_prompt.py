@@ -97,7 +97,7 @@ class TestBuildMessages:
         messages = build_messages("测试问题", chunks)
         assert messages[0]["role"] == "system"
         assert messages[-1]["role"] == "user"
-        assert messages[-1]["content"] == "测试问题"
+        assert messages[-1]["content"] == "<user_query>测试问题</user_query>"
         assert "知识片段" in messages[0]["content"]
 
     def test_build_messages_with_history(self, monkeypatch):
@@ -114,7 +114,7 @@ class TestBuildMessages:
         assert messages[1]["role"] == "user"
         assert messages[1]["content"] == "之前的问题"
         assert messages[-1]["role"] == "user"
-        assert messages[-1]["content"] == "新问题"
+        assert messages[-1]["content"] == "<user_query>新问题</user_query>"
 
     def test_build_messages_token_budget_critical_first(self, monkeypatch):
         """Critical chunks should be prioritized when token budget is tight."""

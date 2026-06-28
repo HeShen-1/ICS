@@ -67,16 +67,16 @@ class TestSearch:
 
 
 class TestAutoRoute:
-    def test_auto_route_returns_majority_kb_id(self, retriever, mock_vector_store):
-        """When chunks have majority kb_id='kb2', auto_route returns 'kb2'."""
+    def test_auto_route_returns_best_kb_by_max_score(self, retriever, mock_vector_store):
+        """auto_route returns KB with highest-scoring chunk (per-KB max)."""
         mock_vector_store.search.return_value = [
-            {"kb_id": "kb1", "text": "a", "score": 0.9},
+            {"kb_id": "kb1", "text": "a", "score": 0.9},  # best single score
             {"kb_id": "kb2", "text": "b", "score": 0.8},
             {"kb_id": "kb2", "text": "c", "score": 0.7},
             {"kb_id": "kb2", "text": "d", "score": 0.6},
         ]
         result = retriever.auto_route("query")
-        assert result == "kb2"
+        assert result == "kb1"  # kb1 has max single-chunk score
 
     def test_auto_route_empty_results_returns_none(self, retriever, mock_vector_store):
         """Empty search results -> None."""
@@ -94,12 +94,12 @@ class TestAutoRoute:
         result = retriever.auto_route("query")
         assert result is None
 
-    def test_auto_route_with_mixed_ids_returns_most_common(self, retriever, mock_vector_store):
-        """With kb_id values like ['1','2','1'], auto_route returns '1'."""
+    def test_auto_route_with_mixed_ids_returns_highest_score_kb(self, retriever, mock_vector_store):
+        """With kb_id values and varying scores, return KB with highest-score chunk."""
         mock_vector_store.search.return_value = [
-            {"kb_id": "1", "text": "a", "score": 0.9},
+            {"kb_id": "1", "text": "a", "score": 0.9},  # highest score → "1"
             {"kb_id": "2", "text": "b", "score": 0.8},
             {"kb_id": "1", "text": "c", "score": 0.7},
         ]
         result = retriever.auto_route("query")
-        assert result == "1"
+        assert result == "1"  # kb 1 has the single highest-scoring chunk
